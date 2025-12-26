@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    container_name: support-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/support_bot
+    depends_on:
+      - mongodb
+    networks:
+      - bot-network
+    volumes:
+      - ./config:/app/config
+
+  mongodb:
+    image: mongo:7.0
+    container_name: support-bot-db
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_DATABASE=support_bot
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - bot-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  bot-network:
+    driver: bridge

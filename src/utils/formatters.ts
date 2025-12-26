@@ -1,0 +1,45 @@
+import { TicketStatus } from '../database/models/Ticket';
+
+/**
+ * Formats a date for display
+ */
+export function formatDate(date: Date): string {
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+/**
+ * Formats ticket status with emoji
+ */
+export function formatTicketStatus(status: TicketStatus): string {
+  switch (status) {
+    case TicketStatus.OPEN:
+      return '🟢 Open';
+    case TicketStatus.IN_PROGRESS:
+      return '🟡 In Progress';
+    case TicketStatus.CLOSED:
+      return '⚫ Closed';
+    default:
+      return status;
+  }
+}
+
+/**
+ * Truncates text to specified length
+ */
+export function truncate(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength - 3) + '...';
+}
+
+/**
+ * Escapes markdown special characters
+ */
+export function escapeMarkdown(text: string): string {
+  return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+}
