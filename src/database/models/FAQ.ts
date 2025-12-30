@@ -4,7 +4,7 @@ export interface IFAQ extends Document {
   question: string;
   answer: string;
   category: string;
-  keywords: string[];
+  // keywords: string[];
   order: number;
   isActive: boolean;
   createdAt: Date;
@@ -30,11 +30,11 @@ const FAQSchema = new Schema<IFAQ>({
     default: 'General',
     trim: true
   },
-  keywords: [{
-    type: String,
-    lowercase: true,
-    trim: true
-  }],
+  // keywords: [{
+  //   type: String,
+  //   lowercase: true,
+  //   trim: true
+  // }],
   order: {
     type: Number,
     default: 0,

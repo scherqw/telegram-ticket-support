@@ -134,14 +134,6 @@ async function forwardTechMessageToUser(
     
     await ticket.save();
     
-    // ===== React to confirm =====
-    try {
-      await ctx.react('👍');
-    } catch (error) {
-      // Reaction might fail, not critical
-      console.log('Could not react to message');
-    }
-    
     console.log(`✅ Forwarded message from ${techName} to user ${ticket.userId} (${ticket.ticketId})`);
     
   } catch (error: any) {

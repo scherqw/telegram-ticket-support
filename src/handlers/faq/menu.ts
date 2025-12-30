@@ -3,56 +3,39 @@ import { BotContext } from '../../types';
 import { FAQ } from '../../database/models/FAQ';
 
 /**
- * Shows FAQ menu with inline keyboard
+ * Shows FAQ categories as the initial menu
+ * 
+ * Flow: /faq command → Display categories
  */
 export async function showFAQMenu(ctx: BotContext): Promise<void> {
   try {
-    const faqs = await FAQ.find({ isActive: true })
-      .sort({ category: 1, order: 1 })
-      .limit(20);
+    // Get all unique categories from active FAQs
+    const categories = await FAQ.distinct('category', { isActive: true });
 
-    if (faqs.length === 0) {
+    if (categories.length === 0) {
       await ctx.reply('❌ No FAQs available at the moment.');
       return;
     }
 
-    // Group by category
-    const categories = new Map<string, typeof faqs>();
-    faqs.forEach(faq => {
-      const cat = faq.category || 'General';
-      if (!categories.has(cat)) {
-        categories.set(cat, []);
-      }
-      categories.get(cat)!.push(faq);
-    });
-
-    // Build keyboard
+    // Build keyboard with categories
     const keyboard = new InlineKeyboard();
     
-    categories.forEach((faqList, category) => {
-      // Category header if multiple categories
-      if (categories.size > 1) {
-        keyboard.text(`📁 ${category}`, `cat:${category}`).row();
-      }
-      
-      // FAQ buttons
-      faqList.forEach(faq => {
-        const displayText = faq.question.length > 50
-          ? faq.question.substring(0, 47) + '...'
-          : faq.question;
-        
-        keyboard.text(displayText, `faq:${faq._id}`).row();
-      });
+    // Sort categories alphabetically for better UX
+    categories.sort().forEach(category => {
+      keyboard.text(`📁 ${category}`, `faq:category:${category}`).row();
     });
 
     await ctx.reply(
       '📚 *Frequently Asked Questions*\n\n' +
-      'Select a question below:',
+      'Please select a category:',
       {
         parse_mode: 'Markdown',
         reply_markup: keyboard
       }
     );
+
+    console.log(`📚 FAQ menu opened by user ${ctx.from?.id}`);
+
   } catch (error) {
     console.error('Error showing FAQ menu:', error);
     await ctx.reply('❌ Error loading FAQs. Please try again.');

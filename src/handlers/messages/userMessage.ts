@@ -4,7 +4,8 @@ import { loadConfig } from '../../config/loader';
 
 /**
  * Handles all messages from users in private chat
- * * Logic:
+ * 
+ * Logic:
  * 1. If user has active ticket → Forward to existing topic
  * 2. If no active ticket → Create new ticket with new topic
  */
@@ -22,16 +23,19 @@ export async function handleUserMessage(ctx: BotContext): Promise<void> {
   
   try {
     // ===== STEP 1: Check if user has active ticket =====
-    // Sort by createdAt desc to get the NEWEST active ticket.
+    // Active = OPEN or IN_PROGRESS (not CLOSED)
+    // Sort by createdAt desc to get the most recent active ticket
     const activeTicket = await Ticket.findOne({
       userId,
       status: { $in: [TicketStatus.OPEN, TicketStatus.IN_PROGRESS] }
     }).sort({ createdAt: -1 });
     
     if (activeTicket) {
+      console.log(`📨 User ${userId} replying to existing ticket ${activeTicket.ticketId} (status: ${activeTicket.status})`);
       // ===== State: Existing Ticket =====
       await forwardUserMessageToTopic(ctx, activeTicket);
     } else {
+      console.log(`🎫 Creating new ticket for user ${userId}`);
       // ===== State: New Ticket =====
       await createNewTicketWithTopic(ctx);
     }
@@ -68,7 +72,7 @@ async function createNewTicketWithTopic(ctx: BotContext): Promise<void> {
     messages: []
   });
   
-  await ticket.save();
+  await ticket.save(); // This generates the ticketId
   
   // ===== STEP 2: Create forum topic =====
   const topicName = `${ticket.ticketId} - ${user.first_name}`;
@@ -135,7 +139,10 @@ async function createNewTicketWithTopic(ctx: BotContext): Promise<void> {
       }
     );
     
-    console.log(`✅ Created ticket ${ticket.ticketId} for user ${user.id}`);
+    console.log(
+      `✅ Created ticket ${ticket.ticketId} for user ${user.id} ` +
+      `(topicId: ${ticket.topicId}, status: ${ticket.status})`
+    );
     
   } catch (error) {
     console.error('Error creating forum topic:', error);
@@ -159,23 +166,18 @@ async function forwardUserMessageToTopic(
   
   // Check if topic still exists
   if (!ticket.topicId) {
-    console.log(`⚠️ Closing broken ticket ${ticket.ticketId} (Missing topicId)`);
+    console.log(`⚠️ Ticket ${ticket.ticketId} has no topicId, closing and creating new ticket`);
     
-    // FIX: Use updateOne to bypass schema validation for legacy documents
-    await Ticket.updateOne(
-      { _id: ticket._id },
-      { 
-        $set: { 
-          status: TicketStatus.CLOSED,
-          closedAt: new Date()
-        } 
-      }
-    );
-
+    // Close the broken ticket
+    ticket.status = TicketStatus.CLOSED;
+    ticket.closedAt = new Date();
+    await ticket.save();
+    
     await ctx.reply(
-      '⚠️ Your previous ticket topic was missing. Creating a new ticket...',
+      '⚠️ Your previous ticket was incomplete. Creating a new ticket...',
       { reply_to_message_id: message.message_id }
     );
+    
     return createNewTicketWithTopic(ctx);
   }
   
@@ -187,6 +189,7 @@ async function forwardUserMessageToTopic(
     let sentMessage;
     
     if (hasMedia) {
+      // Copy media to topic
       sentMessage = await ctx.api.copyMessage(
         ticket.techGroupChatId,
         ctx.chat!.id,
@@ -198,6 +201,7 @@ async function forwardUserMessageToTopic(
         }
       );
     } else {
+      // Send text message
       sentMessage = await ctx.api.sendMessage(
         ticket.techGroupChatId,
         `📨 *From User:*\n\n${messageText}`,
@@ -220,35 +224,36 @@ async function forwardUserMessageToTopic(
       fileId
     });
     
-    // Update status if needed
-    if (ticket.status === TicketStatus.IN_PROGRESS) {
-      ticket.status = TicketStatus.OPEN; // User replied, needs attention
-    }
+    // DON'T change status - keep it as is (OPEN or IN_PROGRESS)
+    // The ticket stays active until /close is used
     
     await ticket.save();
+    
+    console.log(
+      `✅ Forwarded user message to topic for ticket ${ticket.ticketId} ` +
+      `(status: ${ticket.status})`
+    );
     
   } catch (error: any) {
     console.error('Error forwarding to topic:', error);
     
     // Check if topic was deleted
-    if (error.description?.includes('thread not found') || error.description?.includes('Bad Request: message thread not found')) {
-      console.log(`⚠️ Closing broken ticket ${ticket.ticketId} (Thread not found in Telegram)`);
+    if (
+      error.description?.includes('thread not found') || 
+      error.description?.includes('message thread not found')
+    ) {
+      console.log(`⚠️ Topic for ticket ${ticket.ticketId} was deleted, closing and creating new ticket`);
       
-      // FIX: Use updateOne to bypass schema validation for legacy documents
-      await Ticket.updateOne(
-        { _id: ticket._id },
-        { 
-          $set: { 
-            status: TicketStatus.CLOSED,
-            closedAt: new Date()
-          } 
-        }
-      );
-
+      // Close the broken ticket
+      ticket.status = TicketStatus.CLOSED;
+      ticket.closedAt = new Date();
+      await ticket.save();
+      
       await ctx.reply(
-        '⚠️ Your ticket topic was deleted by an admin. Creating a new ticket...',
+        '⚠️ Your ticket topic was deleted. Creating a new ticket...',
         { reply_to_message_id: message.message_id }
       );
+      
       return createNewTicketWithTopic(ctx);
     }
     

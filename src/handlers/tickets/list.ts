@@ -21,9 +21,16 @@ export async function showUserTickets(ctx: BotContext): Promise<void> {
     let message = '📋 *Your Recent Tickets*\n\n';
 
     tickets.forEach(ticket => {
+      // Handle legacy tickets that might not have initialMessage
+      const preview = ticket.initialMessage 
+        ? (ticket.initialMessage.length > 60 
+            ? ticket.initialMessage.substring(0, 60) + '...'
+            : ticket.initialMessage)
+        : '[No message content]';
+      
       message +=
         `${formatTicketStatus(ticket.status)} *${ticket.ticketId}*\n` +
-        `   ${ticket.initialMessage.substring(0, 60)}${ticket.initialMessage.length > 60 ? '...' : ''}\n` +
+        `   ${preview}\n` +
         `   _${formatDate(ticket.createdAt)}_\n\n`;
     });
 
