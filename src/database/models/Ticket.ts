@@ -10,28 +10,50 @@ export interface ITicketMessage {
   from: 'user' | 'technician';
   text: string;
   timestamp: Date;
-  messageId?: number;
-  groupMessageId?: number;
+  
+  // Message IDs for reference
+  userMessageId?: number;      // Message ID in user's DM
+  topicMessageId?: number;     // Message ID in forum topic
+  
+  // Technician info
   technicianId?: number;
   technicianName?: string;
+  
+  // Media tracking
+  hasMedia?: boolean;
+  mediaType?: 'photo' | 'document' | 'voice' | 'video' | 'audio' | 'sticker';
+  fileId?: string;             // Telegram file_id for media
 }
 
 export interface ITicket extends Document {
+  // === Identity ===
   ticketId: string;
   userId: number;
   username?: string;
-  firstName?: string;
+  firstName: string;
   lastName?: string;
-  subject: string;
+  
+  // === Telegram Forum Mapping (NEW) ===
+  topicId?: number;            // message_thread_id in tech group
+  topicName?: string;          // "TICK-0001 - John Doe"
+  techGroupChatId: number;     // The forum supergroup ID
+  
+  // === Status ===
   status: TicketStatus;
-  userMessageId: number;
-  techGroupMessageId?: number;
+  
+  // === Messages (Permanent Transcript) ===
   messages: ITicketMessage[];
+  initialMessage: string;      // First message that created ticket
+  
+  // === Assignment ===
   assignedTo?: number;
   assignedToName?: string;
+  
+  // === Timestamps ===
   createdAt: Date;
   updatedAt: Date;
   closedAt?: Date;
+  topicDeletionScheduledAt?: Date;  // NEW: For 24h cleanup
 }
 
 const TicketSchema = new Schema<ITicket>({
@@ -47,28 +69,33 @@ const TicketSchema = new Schema<ITicket>({
     index: true
   },
   username: String,
-  firstName: String,
-  lastName: String,
-  subject: {
+  firstName: {
     type: String,
-    required: true,
-    trim: true,
-    maxlength: 500
+    required: true
   },
+  lastName: String,
+  
+  // === Forum Topic Fields ===
+  topicId: {
+    type: Number,
+    index: true,
+    sparse: true  // Allow null, but index if exists
+  },
+  topicName: String,
+  techGroupChatId: {
+    type: Number,
+    required: true
+  },
+  
+  // === Status ===
   status: {
     type: String,
     enum: Object.values(TicketStatus),
     default: TicketStatus.OPEN,
     index: true
   },
-  userMessageId: {
-    type: Number,
-    required: true
-  },
-  techGroupMessageId: {
-    type: Number,
-    index: true
-  },
+  
+  // === Messages ===
   messages: [{
     from: {
       type: String,
@@ -84,25 +111,39 @@ const TicketSchema = new Schema<ITicket>({
       type: Date,
       default: Date.now
     },
-    messageId: Number,
-    groupMessageId: Number,
+    userMessageId: Number,
+    topicMessageId: Number,
     technicianId: Number,
-    technicianName: String
+    technicianName: String,
+    hasMedia: Boolean,
+    mediaType: String,
+    fileId: String
   }],
+  
+  initialMessage: {
+    type: String,
+    required: true,
+    maxlength: 4000
+  },
+  
+  // === Assignment ===
   assignedTo: Number,
   assignedToName: String,
-  closedAt: Date
+  
+  // === Timestamps ===
+  closedAt: Date,
+  topicDeletionScheduledAt: Date
 }, {
   timestamps: true
 });
 
-// Compound indexes for efficient queries
-TicketSchema.index({ userId: 1, status: 1 });
-TicketSchema.index({ status: 1, createdAt: -1 });
-TicketSchema.index({ techGroupMessageId: 1, status: 1 });
-TicketSchema.index({ 'messages.groupMessageId': 1 });
+// === Indexes for Performance ===
+TicketSchema.index({ userId: 1, status: 1 });           // Find active ticket for user
+TicketSchema.index({ topicId: 1, status: 1 });          // Find ticket by topic
+TicketSchema.index({ status: 1, closedAt: 1 });         // Closed tickets query
+TicketSchema.index({ topicDeletionScheduledAt: 1 });    // Cleanup job query
 
-// Auto-generate ticket IDs
+// === Auto-generate Ticket IDs ===
 TicketSchema.pre('validate', async function() {
   if (this.isNew && !this.ticketId) {
     const count = await mongoose.model('Ticket').countDocuments();

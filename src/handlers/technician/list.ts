@@ -28,7 +28,7 @@ export async function listOpenTickets(ctx: BotContext): Promise<void> {
       message +=
         `${formatTicketStatus(ticket.status)} *${ticket.ticketId}*${assigned}\n` +
         `   User: ${ticket.firstName}${ticket.username ? ` (@${ticket.username})` : ''}\n` +
-        `   ${truncate(ticket.subject, 60)}\n` +
+        `   ${truncate(ticket.initialMessage, 60)}\n` +
         `   _${formatDate(ticket.createdAt)}_\n\n`;
     });
 

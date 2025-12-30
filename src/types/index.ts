@@ -1,21 +1,10 @@
-import { Context as GrammyContext, SessionFlavor } from 'grammy';
+import { Context as GrammyContext } from 'grammy';
 
 /**
- * Session data structure
+ * Extended bot context
+ * NOTE: Removed SessionFlavor - we use database state instead
  */
-export interface SessionData {
-  awaitingTicket?: boolean;
-  currentTicketId?: string;
-}
-
-/**
- * Extended bot context with session
- */
-// export interface BotContext extends GrammyContext {
-//   session?: SessionData;
-// }
-
-export type BotContext = GrammyContext & SessionFlavor<SessionData>;
+export type BotContext = GrammyContext;
 
 /**
  * Bot configuration interface
@@ -23,6 +12,7 @@ export type BotContext = GrammyContext & SessionFlavor<SessionData>;
 export interface BotConfig {
   bot: {
     token: string;
+    username: string;  // NEW: For FAQ instructions
     parse_mode: 'Markdown' | 'HTML';
   };
   database: {
@@ -31,13 +21,16 @@ export interface BotConfig {
   groups: {
     technician_group_id: number;
   };
+  topics: {
+    general_topic_id: number;  // NEW: Permanent general discussion topic
+  };
   admin: {
     owner_id: number;
   };
   features: {
-    enable_group_faq: boolean;
-    enable_private_tickets: boolean;
-    show_ticket_ids: boolean;
+    enable_faq: boolean;
+    auto_create_ticket: boolean;  // NEW: Auto-create on first message
+    topic_cleanup_hours: number;  // NEW: Hours before topic deletion
   };
   messages: {
     welcome: string;

@@ -1,9 +1,9 @@
-import { Bot, session } from 'grammy';
-import { BotContext, SessionData } from './types';
+import { Bot } from 'grammy';
+import { BotContext } from './types';
 import { loadConfig } from './config/loader';
 import { connectDatabase } from './database/connection';
 import { logger } from './middleware/logger';
-import { privateOnly } from './middleware/privateOnly';
+import { validateConfiguration } from './utils/validateConfig';
 
 // Command handlers
 import { handleStart } from './handlers/commands/start';
@@ -12,45 +12,40 @@ import { handleId } from './handlers/commands/id';
 
 // FAQ handlers
 import { showFAQMenu } from './handlers/faq/menu';
-import { handleFAQCallback, handleFAQSolved } from './handlers/faq/callback';
+import { handleFAQCallback } from './handlers/faq/callback';
 
-// Ticket handlers
-import {
-  startTicketCreation,
-  handleTicketMessage,
-  cancelTicketCreation
-} from './handlers/tickets/create';
+// Message handlers (NEW)
+import { handleUserMessage } from './handlers/messages/userMessage';
+import { handleTechnicianMessage } from './handlers/messages/technicianMessage';
+
+// Ticket management
 import { showUserTickets } from './handlers/tickets/list';
 
 // Technician handlers
-import { handleTechnicianReply } from './handlers/technician/reply';
 import { listOpenTickets } from './handlers/technician/list';
 import { closeTicket } from './handlers/technician/close';
-import { reopenTicket } from './handlers/technician/reopen';
+
+// Background jobs
+import { startTopicCleanupJob } from './jobs/topicCleanup';
 
 async function main() {
-  console.log('🤖 Starting Telegram Support Bot v2...\n');
+  console.log('🤖 Starting Telegram Support Bot v3 (Forum Topics Edition)...\n');
 
-  // Load configuration
+  // ===== Load Configuration =====
   const config = loadConfig();
   console.log('✅ Configuration loaded');
 
-  // Connect to database
+  // ===== Connect to Database =====
   await connectDatabase(config.database.uri);
 
-  // Initialize bot
+  // ===== Initialize Bot =====
   const bot = new Bot<BotContext>(config.bot.token);
   console.log('✅ Bot initialized');
 
-  // Session middleware
-  bot.use(session({
-    initial: (): SessionData => ({
-      awaitingTicket: false,
-      currentTicketId: undefined
-    })
-  }));
+  // ===== Validate Configuration =====
+  await validateConfiguration(bot.api, config);
 
-  // Logging middleware
+  // ===== Middleware =====
   bot.use(logger);
 
   // =========================================================================
@@ -67,35 +62,36 @@ async function main() {
 
   bot.command('faq', showFAQMenu);
   bot.callbackQuery(/^faq:/, handleFAQCallback);
-  bot.callbackQuery('faq_solved', handleFAQSolved);
-  bot.callbackQuery('create_ticket', privateOnly, startTicketCreation);
 
   // =========================================================================
-  // TICKET SYSTEM (Private DM only)
+  // USER TICKET MANAGEMENT (Private DM only)
   // =========================================================================
 
-  bot.command('ticket', privateOnly, startTicketCreation);
-  bot.command('mytickets', privateOnly, showUserTickets);
-  bot.command('cancel', privateOnly, cancelTicketCreation);
+  bot.command('mytickets', async (ctx) => {
+    if (ctx.chat?.type === 'private') {
+      await showUserTickets(ctx);
+    }
+  });
+  
+  // Note: /cancel command removed - no longer needed in stateless design
 
   // =========================================================================
-  // TECHNICIAN COMMANDS (Staff group)
+  // TECHNICIAN COMMANDS (Tech group only)
   // =========================================================================
 
   bot.command('open', listOpenTickets);
   bot.command('close', closeTicket);
-  bot.command('reopen', reopenTicket);
 
   // =========================================================================
-  // MESSAGE HANDLERS
+  // MESSAGE ROUTING (The Core Logic!)
   // =========================================================================
 
   bot.on('message', async (ctx) => {
-    // Handle technician replies
-    await handleTechnicianReply(ctx);
+    // Process technician messages first (more specific)
+    await handleTechnicianMessage(ctx);
     
-    // Handle ticket creation
-    await handleTicketMessage(ctx);
+    // Then process user messages (fallback)
+    await handleUserMessage(ctx);
   });
 
   // =========================================================================
@@ -116,9 +112,17 @@ async function main() {
       console.log('\n✅ Bot is running!');
       console.log(`📱 Username: @${botInfo.username}`);
       console.log(`🏢 Tech Group: ${config.groups.technician_group_id}`);
-      console.log(`\n💡 Send /start to your bot to begin!\n`);
+      console.log(`📋 General Topic: ${config.topics.general_topic_id}`);
+      console.log(`\n💡 Users can now DM the bot directly to create tickets!\n`);
     }
   });
+
+  // =========================================================================
+  // START BACKGROUND JOBS
+  // =========================================================================
+
+  startTopicCleanupJob(bot);
+  console.log('✅ Background cleanup job started');
 
   // =========================================================================
   // GRACEFUL SHUTDOWN
@@ -134,7 +138,7 @@ async function main() {
   process.once('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-// Run bot
+// ===== Run Bot =====
 main().catch((error) => {
   console.error('❌ Fatal error:', error);
   process.exit(1);

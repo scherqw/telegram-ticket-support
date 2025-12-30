@@ -1,10 +1,13 @@
-import { InlineKeyboard } from 'grammy';
 import { BotContext } from '../../types';
 import { FAQ } from '../../database/models/FAQ';
-import { isPrivateChat } from '../../utils/chatContext';
+import { loadConfig } from '../../config/loader';
 
 /**
  * Handles FAQ button clicks
+ * 
+ * NEW BEHAVIOR:
+ * - No longer creates tickets
+ * - Just shows answer + instructions to DM bot
  */
 export async function handleFAQCallback(ctx: BotContext): Promise<void> {
   const callbackData = ctx.callbackQuery?.data;
@@ -25,33 +28,23 @@ export async function handleFAQCallback(ctx: BotContext): Promise<void> {
     }
 
     await ctx.answerCallbackQuery();
+    
+    const config = loadConfig();
 
+    // Send answer with instructions to DM bot
     await ctx.reply(
-      `*${faq.question}*\n\n${faq.answer}`,
+      `*${faq.question}*\n\n` +
+      `${faq.answer}\n\n` +
+      `─────────────────\n` +
+      `💡 *Need more help?*\n` +
+      `Send @${config.bot.username} a direct message to create a support ticket!`,
       { parse_mode: 'Markdown' }
     );
-
-    // Offer ticket creation in private chat
-    if (isPrivateChat(ctx)) {
-      const keyboard = new InlineKeyboard()
-        .text('✅ Solved', 'faq_solved')
-        .text('📝 Create Ticket', 'create_ticket');
-
-      await ctx.reply(
-        'Did this answer your question?',
-        { reply_markup: keyboard }
-      );
-    }
+    
+    console.log(`📚 FAQ answered: "${faq.question}" for user ${ctx.from?.id}`);
+    
   } catch (error) {
     console.error('Error handling FAQ callback:', error);
     await ctx.answerCallbackQuery('❌ Error loading FAQ');
   }
-}
-
-/**
- * Handles FAQ resolved callback
- */
-export async function handleFAQSolved(ctx: BotContext): Promise<void> {
-  await ctx.answerCallbackQuery('✅ Great!');
-  await ctx.reply('✅ Glad I could help! Use /faq anytime.');
 }

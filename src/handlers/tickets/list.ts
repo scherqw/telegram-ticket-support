@@ -14,7 +14,7 @@ export async function showUserTickets(ctx: BotContext): Promise<void> {
       .limit(10);
 
     if (tickets.length === 0) {
-      await ctx.reply('📭 No tickets yet. Use /ticket to create one.');
+      await ctx.reply('📭 No tickets yet. Just send me a message to create one!');
       return;
     }
 
@@ -23,7 +23,7 @@ export async function showUserTickets(ctx: BotContext): Promise<void> {
     tickets.forEach(ticket => {
       message +=
         `${formatTicketStatus(ticket.status)} *${ticket.ticketId}*\n` +
-        `   ${ticket.subject}\n` +
+        `   ${ticket.initialMessage.substring(0, 60)}${ticket.initialMessage.length > 60 ? '...' : ''}\n` +
         `   _${formatDate(ticket.createdAt)}_\n\n`;
     });
 
