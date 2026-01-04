@@ -1,6 +1,7 @@
 import { BotContext } from '../../types';
 import { Ticket, TicketStatus, ITicket } from '../../database/models/Ticket';
 import { loadConfig } from '../../config/loader';
+import { userInfo } from 'node:os';
 
 /**
  * Handles all messages from users in private chat
@@ -183,6 +184,7 @@ async function forwardUserMessageToTopic(
   
   const messageText = extractMessageText(message);
   const { hasMedia, mediaType, fileId } = extractMediaInfo(message);
+  const user = ctx.from!
   
   try {
     // ===== Forward to topic =====
@@ -196,7 +198,7 @@ async function forwardUserMessageToTopic(
         message.message_id,
         {
           message_thread_id: ticket.topicId,
-          caption: messageText ? `📨 *From User:*\n\n${messageText}` : undefined,
+          caption: messageText ? `📨 *From ${user.username} (${ticket.ticketId}):*\n\n${messageText}` : undefined,
           parse_mode: 'Markdown'
         }
       );
@@ -204,7 +206,7 @@ async function forwardUserMessageToTopic(
       // Send text message
       sentMessage = await ctx.api.sendMessage(
         ticket.techGroupChatId,
-        `📨 *From User:*\n\n${messageText}`,
+        `📨 *From ${user.username} (${ticket.ticketId}):*\n\n${messageText}`,
         {
           message_thread_id: ticket.topicId,
           parse_mode: 'Markdown'

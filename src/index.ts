@@ -8,7 +8,6 @@ import { validateConfiguration } from './utils/validateConfig';
 // Command handlers
 import { handleStart } from './handlers/commands/start';
 import { handleHelp } from './handlers/commands/help';
-import { handleId } from './handlers/commands/id';
 
 // FAQ handlers
 import { showFAQMenu } from './handlers/faq/menu';
@@ -54,7 +53,6 @@ async function main() {
 
   bot.command('start', handleStart);
   bot.command('help', handleHelp);
-  bot.command('id', handleId);
 
   // =========================================================================
   // FAQ SYSTEM (Works everywhere)
