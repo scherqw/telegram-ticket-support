@@ -33,7 +33,7 @@ export interface ITicket extends Document {
   firstName: string;
   lastName?: string;
   
-  // === Telegram Forum Mapping (NEW) ===
+  // === Telegram Forum Mapping ===
   topicId?: number;            // message_thread_id in tech group
   topicName?: string;          // "TICK-0001 - John Doe"
   techGroupChatId: number;     // The forum supergroup ID
@@ -49,11 +49,18 @@ export interface ITicket extends Document {
   assignedTo?: number;
   assignedToName?: string;
   
+  // === Rating (NEW) ===
+  rating?: {
+    stars: number;             // 1-5
+    ratedAt: Date;
+    comment?: string;          // Optional user comment
+  };
+  
   // === Timestamps ===
   createdAt: Date;
   updatedAt: Date;
   closedAt?: Date;
-  topicDeletionScheduledAt?: Date;  // NEW: For 24h cleanup
+  topicDeletionScheduledAt?: Date;
 }
 
 const TicketSchema = new Schema<ITicket>({
@@ -129,6 +136,20 @@ const TicketSchema = new Schema<ITicket>({
   // === Assignment ===
   assignedTo: Number,
   assignedToName: String,
+  
+  // === Rating (NEW) ===
+  rating: {
+    stars: {
+      type: Number,
+      min: 1,
+      max: 5
+    },
+    ratedAt: Date,
+    comment: {
+      type: String,
+      maxlength: 500
+    }
+  },
   
   // === Timestamps ===
   closedAt: Date,

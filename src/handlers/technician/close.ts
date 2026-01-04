@@ -1,6 +1,7 @@
 import { BotContext } from '../../types';
 import { Ticket, TicketStatus } from '../../database/models/Ticket';
 import { loadConfig } from '../../config/loader';
+import { sendRatingRequest } from '../rating/ratingHandler';
 
 /**
  * Closes a ticket and schedules topic for deletion
@@ -86,16 +87,23 @@ export async function closeTicket(ctx: BotContext): Promise<void> {
         `Thank you for contacting support!`,
         { parse_mode: 'Markdown' }
       );
+      
+      // ===== STEP 4: Send rating request (NEW) =====
+      // Small delay to ensure closure message is delivered first
+      setTimeout(async () => {
+        await sendRatingRequest(ticket.userId, ticket.ticketId, ctx.api);
+      }, 1000);
+      
     } catch (error) {
       console.error('Could not notify user:', error);
       // Continue even if user notification fails
     }
     
-    // ===== STEP 4: Confirm in topic =====
+    // ===== STEP 5: Confirm in topic =====
     await ctx.reply(
       `✅ *Ticket Closed*\n\n` +
       `Ticket ${ticket.ticketId} has been closed.\n` +
-      `User has been notified.\n\n` +
+      `User has been notified and asked to rate their experience.\n\n` +
       `⏰ This topic will be automatically deleted in ${hoursUntilDeletion} hours.\n` +
       `📝 The full transcript is saved in the database.`,
       { 

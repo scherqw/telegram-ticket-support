@@ -13,6 +13,9 @@ import { handleHelp } from './handlers/commands/help';
 import { showFAQMenu } from './handlers/faq/menu';
 import { handleFAQCallback } from './handlers/faq/callback';
 
+// Rating handlers (NEW)
+import { handleRatingCallback } from './handlers/rating/ratingHandler';
+
 // Message handlers (NEW)
 import { handleUserMessage } from './handlers/messages/userMessage';
 import { handleTechnicianMessage } from './handlers/messages/technicianMessage';
@@ -60,6 +63,12 @@ async function main() {
 
   bot.command('faq', showFAQMenu);
   bot.callbackQuery(/^faq:/, handleFAQCallback);
+
+  // =========================================================================
+  // RATING SYSTEM (NEW)
+  // =========================================================================
+
+  bot.callbackQuery(/^rate:/, handleRatingCallback);
 
   // =========================================================================
   // USER TICKET MANAGEMENT (Private DM only)
