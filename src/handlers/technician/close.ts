@@ -5,14 +5,15 @@ import { sendRatingRequest } from '../rating/ratingHandler';
 import { showCategorySelection } from '../categorization/categoryHandler';
 
 /**
- * Closes a ticket with optional categorization
+ * Closes a ticket with optional categorization and archiving
  * 
  * Flow:
  * 1. /close command
- * 2. Show category selection (if enabled)
- * 3. Wait for categorization
- * 4. Close ticket
- * 5. Send rating request
+ * 2. Send rating request to user (immediate)
+ * 3. Show category selection to tech (if enabled)
+ * 4. Wait for categorization
+ * 5. Archive ticket (if enabled)
+ * 6. Close ticket and schedule deletion
  * 
  * Usage: /close (inside a ticket topic)
  */
@@ -129,7 +130,7 @@ export async function finalizeTicketClosure(
 ): Promise<void> {
   const threadId = ticket.topicId;
   
-  // Close ticket
+  // ===== STEP 1: Close ticket =====
   ticket.status = TicketStatus.CLOSED;
   ticket.closedAt = new Date();
   
@@ -140,8 +141,21 @@ export async function finalizeTicketClosure(
   );
   
   await ticket.save();
+
+  // ===== STEP 2: Archive ticket (if enabled) =====
+  if (config.features.enable_archiving) {
+    try {
+      // Dynamic import to avoid circular dependency
+      const { archiveTicket } = await import('../archive/archiveHandler');
+      await archiveTicket(ticket, ctx.api);
+    } catch (error) {
+      console.error('Error archiving ticket:', error);
+      // Continue even if archiving fails
+    }
+  }
   
-  // Confirm in topic
+  
+  // ===== STEP 3: Confirm in topic =====
   const categoryInfo = ticket.categories && ticket.categories.length > 0
     ? `\n📂 Categories: ${ticket.categories.join(', ')}`
     : '';
@@ -150,11 +164,15 @@ export async function finalizeTicketClosure(
     ? ' and asked to rate their experience'
     : '';
   
+  const archiveInfo = config.features.enable_archiving && ticket.archiveTopicId
+    ? `\n📦 Archived to topic ${ticket.archiveTopicId}`
+    : '';
+  
   await ctx.api.sendMessage(
     config.groups.technician_group_id,
     `✅ *Ticket Closed*\n\n` +
     `Ticket ${ticket.ticketId} has been closed.\n` +
-    `User has been notified${ratingInfo}.${categoryInfo}\n\n` +
+    `User has been notified${ratingInfo}.${categoryInfo}${archiveInfo}\n\n` +
     `⏰ This topic will be automatically deleted in ${hoursUntilDeletion} hours.\n` +
     `📝 The full transcript is saved in the database.`,
     { 
@@ -165,7 +183,8 @@ export async function finalizeTicketClosure(
   
   console.log(
     `✅ Ticket ${ticket.ticketId} closed by ${ctx.from?.first_name} ` +
-    `${categoryInfo ? `(Categories: ${ticket.categories.join(', ')})` : ''}`
+    `${categoryInfo ? `(Categories: ${ticket.categories.join(', ')})` : ''}` +
+    `${archiveInfo ? ` - Archived` : ''}`
   );
 }
 

@@ -56,10 +56,15 @@ export interface ITicket extends Document {
     comment?: string;          // Optional user comment
   };
   
-  // === Categorization (NEW) ===
+  // === Categorization ===
   categories: string[];        // Array of category IDs (e.g., ['account', 'billing'])
   categorizedBy?: number;      // Technician who categorized
   categorizedAt?: Date;        // When it was categorized
+  
+  // === Archive (NEW) ===
+  archivedAt?: Date;           // When ticket was archived
+  archiveTopicId?: number;     // Topic ID in archive group
+  archiveTopicName?: string;   // Topic name in archive
   
   // === Timestamps ===
   createdAt: Date;
@@ -156,7 +161,7 @@ const TicketSchema = new Schema<ITicket>({
     }
   },
   
-  // === Categorization (NEW) ===
+  // === Categorization ===
   categories: [{
     type: String,
     lowercase: true,
@@ -164,6 +169,11 @@ const TicketSchema = new Schema<ITicket>({
   }],
   categorizedBy: Number,
   categorizedAt: Date,
+  
+  // === Archive (NEW) ===
+  archivedAt: Date,
+  archiveTopicId: Number,
+  archiveTopicName: String,
   
   // === Timestamps ===
   closedAt: Date,

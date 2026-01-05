@@ -41,5 +41,4 @@ export function truncate(text: string, maxLength: number): string {
  * Escapes markdown special characters
  */
 export function escapeMarkdown(text: string): string {
-  return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
-}
+  return text.replace(/[_*`[]/g, '\\$&');}

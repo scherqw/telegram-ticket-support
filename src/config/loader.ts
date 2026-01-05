@@ -25,6 +25,9 @@ export function loadConfig(): BotConfig {
     if (process.env.TECH_GROUP_ID) {
       config.groups.technician_group_id = Number(process.env.TECH_GROUP_ID);
     }
+    if (process.env.ARCHIVE_GROUP_ID) {
+      config.groups.archive_group_id = Number(process.env.ARCHIVE_GROUP_ID);
+    }
     if (process.env.OWNER_ID) {
       config.admin.owner_id = Number(process.env.OWNER_ID);
     }

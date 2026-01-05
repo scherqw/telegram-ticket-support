@@ -20,6 +20,7 @@ export interface BotConfig {
   };
   groups: {
     technician_group_id: number;
+    archive_group_id: number;      // NEW: Archive group for closed tickets
   };
   topics: {
     general_topic_id: number;
@@ -31,8 +32,9 @@ export interface BotConfig {
     enable_faq: boolean;
     auto_create_ticket: boolean;
     topic_cleanup_hours: number;
-    enable_ratings: boolean;           // NEW
-    enable_categorization: boolean;    // NEW
+    enable_ratings: boolean;
+    enable_categorization: boolean;
+    enable_archiving: boolean;        // NEW: Enable archive system
   };
   categories: TicketCategory[];        // NEW
   messages: {

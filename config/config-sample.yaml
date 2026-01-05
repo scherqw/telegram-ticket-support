@@ -25,6 +25,7 @@ features:
   topic_cleanup_hours: 24
   enable_ratings: true
   enable_categorization: true
+  enable_archiving: true
 
 # Ticket categories (customize these as needed)
 categories:
