@@ -49,12 +49,17 @@ export interface ITicket extends Document {
   assignedTo?: number;
   assignedToName?: string;
   
-  // === Rating (NEW) ===
+  // === Rating ===
   rating?: {
     stars: number;             // 1-5
     ratedAt: Date;
     comment?: string;          // Optional user comment
   };
+  
+  // === Categorization (NEW) ===
+  categories: string[];        // Array of category IDs (e.g., ['account', 'billing'])
+  categorizedBy?: number;      // Technician who categorized
+  categorizedAt?: Date;        // When it was categorized
   
   // === Timestamps ===
   createdAt: Date;
@@ -137,7 +142,7 @@ const TicketSchema = new Schema<ITicket>({
   assignedTo: Number,
   assignedToName: String,
   
-  // === Rating (NEW) ===
+  // === Rating ===
   rating: {
     stars: {
       type: Number,
@@ -151,6 +156,15 @@ const TicketSchema = new Schema<ITicket>({
     }
   },
   
+  // === Categorization (NEW) ===
+  categories: [{
+    type: String,
+    lowercase: true,
+    trim: true
+  }],
+  categorizedBy: Number,
+  categorizedAt: Date,
+  
   // === Timestamps ===
   closedAt: Date,
   topicDeletionScheduledAt: Date
@@ -163,6 +177,8 @@ TicketSchema.index({ userId: 1, status: 1 });           // Find active ticket fo
 TicketSchema.index({ topicId: 1, status: 1 });          // Find ticket by topic
 TicketSchema.index({ status: 1, closedAt: 1 });         // Closed tickets query
 TicketSchema.index({ topicDeletionScheduledAt: 1 });    // Cleanup job query
+TicketSchema.index({ categories: 1, status: 1 });       // NEW: Filter by category
+TicketSchema.index({ 'rating.stars': 1 });              // NEW: Rating queries
 
 // === Auto-generate Ticket IDs ===
 TicketSchema.pre('validate', async function() {

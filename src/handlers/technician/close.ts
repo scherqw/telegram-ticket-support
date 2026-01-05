@@ -2,9 +2,17 @@ import { BotContext } from '../../types';
 import { Ticket, TicketStatus } from '../../database/models/Ticket';
 import { loadConfig } from '../../config/loader';
 import { sendRatingRequest } from '../rating/ratingHandler';
+import { showCategorySelection } from '../categorization/categoryHandler';
 
 /**
- * Closes a ticket and schedules topic for deletion
+ * Closes a ticket with optional categorization
+ * 
+ * Flow:
+ * 1. /close command
+ * 2. Show category selection (if enabled)
+ * 3. Wait for categorization
+ * 4. Close ticket
+ * 5. Send rating request
  * 
  * Usage: /close (inside a ticket topic)
  */
@@ -65,57 +73,39 @@ export async function closeTicket(ctx: BotContext): Promise<void> {
       return;
     }
     
-    // ===== STEP 2: Close ticket =====
-    ticket.status = TicketStatus.CLOSED;
-    ticket.closedAt = new Date();
-    
-    // Schedule deletion for 24 hours from now
-    const hoursUntilDeletion = config.features.topic_cleanup_hours || 24;
-    ticket.topicDeletionScheduledAt = new Date(
-      Date.now() + hoursUntilDeletion * 60 * 60 * 1000
-    );
-    
-    await ticket.save();
-    
-    // ===== STEP 3: Notify user =====
-    try {
-      await ctx.api.sendMessage(
-        ticket.userId,
-        `✅ *Ticket Closed: ${ticket.ticketId}*\n\n` +
-        `Your support ticket has been resolved.\n\n` +
-        `If you need further assistance, just send a new message to create another ticket.\n\n` +
-        `Thank you for contacting support!`,
-        { parse_mode: 'Markdown' }
-      );
-      
-      // ===== STEP 4: Send rating request (NEW) =====
-      // Small delay to ensure closure message is delivered first
-      setTimeout(async () => {
-        await sendRatingRequest(ticket.userId, ticket.ticketId, ctx.api);
-      }, 1000);
-      
-    } catch (error) {
-      console.error('Could not notify user:', error);
-      // Continue even if user notification fails
+    // ===== STEP 2: Send rating request immediately (if enabled) =====
+    // This happens in parallel with categorization!
+    if (config.features.enable_ratings) {
+      try {
+        await ctx.api.sendMessage(
+          ticket.userId,
+          `✅ *Ticket Closed: ${ticket.ticketId}*\n\n` +
+          `Your support ticket has been resolved.\n\n` +
+          `If you need further assistance, just send a new message to create another ticket.\n\n` +
+          `Thank you for contacting support!`,
+          { parse_mode: 'Markdown' }
+        );
+        
+        // Send rating request immediately
+        setTimeout(async () => {
+          await sendRatingRequest(ticket.userId, ticket.ticketId, ctx.api);
+        }, 1000);
+      } catch (error) {
+        console.error('Could not notify user:', error);
+      }
     }
     
-    // ===== STEP 5: Confirm in topic =====
-    await ctx.reply(
-      `✅ *Ticket Closed*\n\n` +
-      `Ticket ${ticket.ticketId} has been closed.\n` +
-      `User has been notified and asked to rate their experience.\n\n` +
-      `⏰ This topic will be automatically deleted in ${hoursUntilDeletion} hours.\n` +
-      `📝 The full transcript is saved in the database.`,
-      { 
-        message_thread_id: threadId,
-        parse_mode: 'Markdown'
+    // ===== STEP 3: Show categorization (if enabled and not already categorized) =====
+    if (config.features.enable_categorization) {
+      if (!ticket.categories || ticket.categories.length === 0) {
+        // Show category selection and wait for user to complete it
+        await showCategorySelection(ctx, ticket.ticketId);
+        return; // Exit here - categorization callback will trigger final closure
       }
-    );
+    }
     
-    console.log(
-      `✅ Ticket ${ticket.ticketId} closed by ${ctx.from?.first_name} ` +
-      `(Topic deletion scheduled for ${ticket.topicDeletionScheduledAt.toLocaleString()})`
-    );
+    // ===== STEP 4: Close ticket directly (if categorization disabled or already categorized) =====
+    await finalizeTicketClosure(ctx, ticket, config);
     
   } catch (error) {
     console.error('Error closing ticket:', error);
@@ -127,6 +117,56 @@ export async function closeTicket(ctx: BotContext): Promise<void> {
       }
     );
   }
+}
+
+/**
+ * Finalizes ticket closure (called after categorization or directly if disabled)
+ */
+export async function finalizeTicketClosure(
+  ctx: BotContext,
+  ticket: any,
+  config: any
+): Promise<void> {
+  const threadId = ticket.topicId;
+  
+  // Close ticket
+  ticket.status = TicketStatus.CLOSED;
+  ticket.closedAt = new Date();
+  
+  // Schedule deletion for 24 hours from now
+  const hoursUntilDeletion = config.features.topic_cleanup_hours || 24;
+  ticket.topicDeletionScheduledAt = new Date(
+    Date.now() + hoursUntilDeletion * 60 * 60 * 1000
+  );
+  
+  await ticket.save();
+  
+  // Confirm in topic
+  const categoryInfo = ticket.categories && ticket.categories.length > 0
+    ? `\n📂 Categories: ${ticket.categories.join(', ')}`
+    : '';
+  
+  const ratingInfo = config.features.enable_ratings
+    ? ' and asked to rate their experience'
+    : '';
+  
+  await ctx.api.sendMessage(
+    config.groups.technician_group_id,
+    `✅ *Ticket Closed*\n\n` +
+    `Ticket ${ticket.ticketId} has been closed.\n` +
+    `User has been notified${ratingInfo}.${categoryInfo}\n\n` +
+    `⏰ This topic will be automatically deleted in ${hoursUntilDeletion} hours.\n` +
+    `📝 The full transcript is saved in the database.`,
+    { 
+      message_thread_id: threadId,
+      parse_mode: 'Markdown'
+    }
+  );
+  
+  console.log(
+    `✅ Ticket ${ticket.ticketId} closed by ${ctx.from?.first_name} ` +
+    `${categoryInfo ? `(Categories: ${ticket.categories.join(', ')})` : ''}`
+  );
 }
 
 /**

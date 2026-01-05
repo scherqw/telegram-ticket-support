@@ -1,7 +1,7 @@
 import { BotContext } from '../../types';
 import { Ticket, TicketStatus, ITicket } from '../../database/models/Ticket';
 import { loadConfig } from '../../config/loader';
-import { userInfo } from 'node:os';
+import { escapeMarkdown } from '../../utils/formatters';
 
 /**
  * Handles all messages from users in private chat
@@ -348,7 +348,7 @@ function formatInitialTopicMessage(
   return (
     `🎫 *New Ticket*\n\n` +
     `👤 *User:* ${user.first_name}${user.last_name ? ' ' + user.last_name : ''}` +
-    `${user.username ? ` (@${user.username})` : ''}\n` +
+    `${escapeMarkdown(user.username) ? ` (@${escapeMarkdown(user.username)})` : ''}\n` +
     `🆔 *User ID:* \`${user.id}\`\n` +
     `📋 *Ticket ID:* ${ticket.ticketId}\n` +
     `⏰ *Created:* ${new Date().toLocaleString('en-US', {

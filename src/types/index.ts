@@ -12,7 +12,7 @@ export type BotContext = GrammyContext;
 export interface BotConfig {
   bot: {
     token: string;
-    username: string;  // NEW: For FAQ instructions
+    username: string;
     parse_mode: 'Markdown' | 'HTML';
   };
   database: {
@@ -22,19 +22,32 @@ export interface BotConfig {
     technician_group_id: number;
   };
   topics: {
-    general_topic_id: number;  // NEW: Permanent general discussion topic
+    general_topic_id: number;
   };
   admin: {
     owner_id: number;
   };
   features: {
     enable_faq: boolean;
-    auto_create_ticket: boolean;  // NEW: Auto-create on first message
-    topic_cleanup_hours: number;  // NEW: Hours before topic deletion
+    auto_create_ticket: boolean;
+    topic_cleanup_hours: number;
+    enable_ratings: boolean;           // NEW
+    enable_categorization: boolean;    // NEW
   };
+  categories: TicketCategory[];        // NEW
   messages: {
     welcome: string;
     help_private: string;
     help_group: string;
   };
+}
+
+/**
+ * Ticket category configuration
+ */
+export interface TicketCategory {
+  id: string;           // Internal ID (e.g., "account")
+  label: string;        // Display name (e.g., "🔐 Account")
+  emoji?: string;       // Optional separate emoji
+  description?: string; // Optional description for techs
 }

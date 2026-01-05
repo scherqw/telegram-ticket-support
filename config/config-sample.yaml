@@ -18,36 +18,66 @@ admin:
 # Feature Flags
 features:
   enable_group_faq: true
+  enable_faq: true
+  auto_create_ticket: true
   enable_private_tickets: true
   show_ticket_ids: true
+  topic_cleanup_hours: 24
+  enable_ratings: true
+  enable_categorization: true
+
+# Ticket categories (customize these as needed)
+categories:
+  - id: "test_category_1"
+    label: "🧪 Test Category 1"
+    description: "First placeholder category for testing"
+  
+  - id: "test_category_2"
+    label: "🧪 Test Category 2"
+    description: "Second placeholder category for testing"
+  
+  - id: "test_category_3"
+    label: "🧪 Test Category 3"
+    description: "Third placeholder category for testing"
+  
+  - id: "other"
+    label: "📋 Other"
+    description: "For tickets that don't fit other categories"
   
 # Messages
 messages:
   welcome: |
-    👋 *Welcome to Support Bot!*
-    
-    🔹 Use /faq to view frequently asked questions
-    🔹 Use /ticket to create a support ticket (DM only)
-    🔹 Use /help for more information
-    
+    👋 *Welcome to Support!*
+
+    I'm here to help you with any questions or issues.
+
+    *How to get help:*
+    • Just send me a message and I'll create a support ticket
+    • Use /faq to see frequently asked questions
+
+
   help_private: |
-    📖 *Help - User Commands*
-    
-    *Available Commands:*
-    • /faq - Browse frequently asked questions
-    • /ticket - Create a new support ticket
-    • /mytickets - View your recent tickets
-    • /cancel - Cancel ticket creation
-    • /help - Show this help message
-    
-    *How to get support:*
-    1. Check /faq first for common questions
-    2. If not resolved, use /ticket to create a support request
-    3. Our team will respond to your ticket shortly
-    
+    *📖 Help - Private Chat*
+
+    *Creating a ticket:*
+    Just send me any message and I'll automatically create a support ticket for you.
+
+    *Commands:*
+    /faq - Browse frequently asked questions
+    /mytickets - View your open tickets
+
+    *What you can send:*
+    • Text messages
+    • Photos
+    • Documents
+    • Voice messages
+    • Videos
+
+    All messages will be forwarded to our support team.
+
   help_group: |
-    📖 *Help - Group Commands*
-    
-    • /faq - Browse frequently asked questions
-    
-    ℹ️ To create tickets, please message the bot directly in a private chat.
+    *📖 Help - Group Chat*
+
+    Use /faq to browse frequently asked questions.
+
+    For personalized support, please DM me directly at @ticket\_bostrat\_bot
