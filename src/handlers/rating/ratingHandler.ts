@@ -4,7 +4,7 @@ import { Ticket } from '../../database/models/Ticket';
 
 /**
  * Sends rating request to user after ticket is closed
- * * @param userId - Telegram user ID
+ * @param userId - Telegram user ID
  * @param ticketId - Ticket ID (e.g., "TICK-0001")
  * @param botApi - Bot API instance
  */
@@ -22,12 +22,10 @@ export async function sendRatingRequest(
       .row()
       .text('⭐⭐⭐⭐ 4', `rate:${ticketId}:4`)
       .text('⭐⭐⭐⭐⭐ 5', `rate:${ticketId}:5`)
-      .row()
-      .text('⏭️ Skip', `rate:${ticketId}:skip`);
 
     await botApi.sendMessage(
       userId,
-      '⭐ *Rate Your Experience*\n\n' +
+      '⭐ *Rate Your Experience (Optional)*\n\n' +
       'How would you rate the support you received?\n' +
       'Your feedback helps us improve our service.',
       {
@@ -61,17 +59,6 @@ export async function handleRatingCallback(ctx: BotContext): Promise<void> {
   const ratingValue = parts[2];
 
   try {
-    // Handle skip
-    if (ratingValue === 'skip') {
-      await ctx.answerCallbackQuery('👍 Thanks anyway!');
-      await ctx.editMessageText(
-        '✅ Thank you for using our support service!\n\n' +
-        'Feel free to create a new ticket anytime you need help.',
-        { parse_mode: 'Markdown' }
-      );
-      console.log(`⏭️  User ${ctx.from?.id} skipped rating for ${ticketId}`);
-      return;
-    }
 
     const stars = parseInt(ratingValue);
 
