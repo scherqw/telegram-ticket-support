@@ -70,7 +70,6 @@ export interface ITicket extends Document {
   createdAt: Date;
   updatedAt: Date;
   closedAt?: Date;
-  topicDeletionScheduledAt?: Date;
 }
 
 const TicketSchema = new Schema<ITicket>({
@@ -177,7 +176,6 @@ const TicketSchema = new Schema<ITicket>({
   
   // === Timestamps ===
   closedAt: Date,
-  topicDeletionScheduledAt: Date
 }, {
   timestamps: true
 });
@@ -186,7 +184,6 @@ const TicketSchema = new Schema<ITicket>({
 TicketSchema.index({ userId: 1, status: 1 });           // Find active ticket for user
 TicketSchema.index({ topicId: 1, status: 1 });          // Find ticket by topic
 TicketSchema.index({ status: 1, closedAt: 1 });         // Closed tickets query
-TicketSchema.index({ topicDeletionScheduledAt: 1 });    // Cleanup job query
 TicketSchema.index({ categories: 1, status: 1 });       // NEW: Filter by category
 TicketSchema.index({ 'rating.stars': 1 });              // NEW: Rating queries
 

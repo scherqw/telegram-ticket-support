@@ -30,9 +30,6 @@ import { showUserTickets } from './handlers/tickets/list';
 import { listOpenTickets } from './handlers/technician/list';
 import { closeTicket } from './handlers/technician/close';
 
-// Background jobs
-import { startTopicCleanupJob } from './jobs/topicCleanup';
-
 async function main() {
   console.log('🤖 Starting Telegram Support Bot v3 (Forum Topics Edition)...\n');
 
@@ -132,13 +129,6 @@ async function main() {
       console.log(`\n💡 Users can now DM the bot directly to create tickets!\n`);
     }
   });
-
-  // =========================================================================
-  // START BACKGROUND JOBS
-  // =========================================================================
-
-  startTopicCleanupJob(bot);
-  console.log('✅ Background cleanup job started');
 
   // =========================================================================
   // GRACEFUL SHUTDOWN
