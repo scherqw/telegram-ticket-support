@@ -97,8 +97,24 @@ export async function closeTicket(ctx: BotContext): Promise<void> {
         console.error('Could not notify user:', error);
       }
     }
+
+    // ===== STEP 3: Check if categorization is needed =====
+
+    const shouldShowCategorization = 
+      config.features.enable_categorization && 
+      config.categories && 
+      Array.isArray(config.categories) &&
+      config.categories.length > 0 &&
+      (!ticket.categories || ticket.categories.length === 0);
     
-    // ===== STEP 3: Close ticket directly (no categorization needed) =====
+    if (shouldShowCategorization) {
+      // Show category selection and WAIT for callback
+      console.log(`📂 Showing category selection for ticket ${ticket.ticketId}`);
+      await showCategorySelection(ctx, ticket.ticketId);
+      return;
+    }
+    
+    // ===== STEP 4: Close ticket directly (no categorization needed) =====
     console.log(`✅ Closing ticket ${ticket.ticketId} without categorization`);
     await finalizeTicketClosure(ctx, ticket, config);
     
