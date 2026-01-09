@@ -4,6 +4,7 @@ import { loadConfig } from './config/loader';
 import { connectDatabase } from './database/connection';
 import { logger } from './middleware/logger';
 import { validateConfiguration } from './utils/validateConfig';
+import { ensureBucketExists } from './services/s3Service';
 
 // Command handlers
 import { handleStart } from './handlers/commands/start';
@@ -16,7 +17,7 @@ import { handleFAQCallback } from './handlers/faq/callback';
 // Rating handlers
 import { handleRatingCallback } from './handlers/rating/ratingHandler';
 
-// Categorization handlers (NEW)
+// Categorization handlers
 import { handleCategoryCallback } from './handlers/categorization/categoryHandler';
 
 // Message handlers
@@ -30,11 +31,8 @@ import { showUserTickets } from './handlers/tickets/list';
 import { listOpenTickets } from './handlers/technician/list';
 import { closeTicket } from './handlers/technician/close';
 
-// Background jobs
-import { startTopicCleanupJob } from './jobs/topicCleanup';
-
 async function main() {
-  console.log('🤖 Starting Telegram Support Bot v3 (Forum Topics Edition)...\n');
+  console.log('🤖 Starting Telegram Support Bot v3 (Forum Topics + S3 Edition)...\n');
 
   // ===== Load Configuration =====
   const config = loadConfig();
@@ -42,6 +40,15 @@ async function main() {
 
   // ===== Connect to Database =====
   await connectDatabase(config.database.uri);
+
+  // ===== Initialize S3 Bucket =====
+  try {
+    await ensureBucketExists();
+    console.log('✅ S3 storage initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize S3:', error);
+    console.error('⚠️  Bot will continue but media upload will fail');
+  }
 
   // ===== Initialize Bot =====
   const bot = new Bot<BotContext>(config.bot.token);
@@ -74,7 +81,7 @@ async function main() {
   bot.callbackQuery(/^rate:/, handleRatingCallback);
 
   // =========================================================================
-  // CATEGORIZATION SYSTEM (NEW)
+  // CATEGORIZATION SYSTEM
   // =========================================================================
 
   bot.callbackQuery(/^cat:/, handleCategoryCallback);
@@ -88,8 +95,6 @@ async function main() {
       await showUserTickets(ctx);
     }
   });
-  
-  // Note: /cancel command removed - no longer needed in stateless design
 
   // =========================================================================
   // TECHNICIAN COMMANDS (Tech group only)
@@ -103,10 +108,7 @@ async function main() {
   // =========================================================================
 
   bot.on('message', async (ctx) => {
-    // Process technician messages first (more specific)
     await handleTechnicianMessage(ctx);
-    
-    // Then process user messages (fallback)
     await handleUserMessage(ctx);
   });
 
@@ -129,16 +131,11 @@ async function main() {
       console.log(`📱 Username: @${botInfo.username}`);
       console.log(`🏢 Tech Group: ${config.groups.technician_group_id}`);
       console.log(`📋 General Topic: ${config.topics.general_topic_id}`);
+      console.log(`📦 S3 Storage: ${process.env.S3_ENDPOINT || 'http://localstack:4566'}`);
       console.log(`\n💡 Users can now DM the bot directly to create tickets!\n`);
+      console.log(`📎 Media files will be stored in S3 and referenced in MongoDB\n`);
     }
   });
-
-  // =========================================================================
-  // START BACKGROUND JOBS
-  // =========================================================================
-
-  startTopicCleanupJob(bot);
-  console.log('✅ Background cleanup job started');
 
   // =========================================================================
   // GRACEFUL SHUTDOWN

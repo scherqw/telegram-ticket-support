@@ -1,20 +1,20 @@
 # Telegram Bot Configuration
 bot:
-  token: 'YOUR_BOT_TOKEN'
-  parse_mode: 'Markdown'
-  
+  token: "YOUR_BOT_TOKEN"
+  parse_mode: "Markdown"
+
 # Database Configuration
 database:
-  uri: 'mongodb://localhost:27017/support_bot'
-  
+  uri: "mongodb://localhost:27017/support_bot"
+
 # Group IDs
 groups:
   technician_group_id: -1001234567890
-  
+
 # Admin Configuration
 admin:
   owner_id: 123456789
-  
+
 # Feature Flags
 features:
   enable_group_faq: true
@@ -32,19 +32,19 @@ categories:
   - id: "test_category_1"
     label: "🧪 Test Category 1"
     description: "First placeholder category for testing"
-  
+
   - id: "test_category_2"
     label: "🧪 Test Category 2"
     description: "Second placeholder category for testing"
-  
+
   - id: "test_category_3"
     label: "🧪 Test Category 3"
     description: "Third placeholder category for testing"
-  
+
   - id: "other"
     label: "📋 Other"
     description: "For tickets that don't fit other categories"
-  
+
 # Messages
 messages:
   welcome: |
@@ -55,7 +55,6 @@ messages:
     *How to get help:*
     • Just send me a message and I'll create a support ticket
     • Use /faq to see frequently asked questions
-
 
   help_private: |
     *📖 Help - Private Chat*

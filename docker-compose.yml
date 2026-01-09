@@ -1,37 +1,86 @@
 version: '3.8'
 
 services:
-  bot:
-    build: .
-    container_name: support-bot
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      - MONGODB_URI=mongodb://mongodb:27017/support_bot
-    depends_on:
-      - mongodb
-    networks:
-      - bot-network
-    volumes:
-      - ./config:/app/config
-
+  # MongoDB Database
   mongodb:
     image: mongo:7.0
-    container_name: support-bot-db
+    container_name: telegram-bot-mongodb
     restart: unless-stopped
-    environment:
-      - MONGO_INITDB_DATABASE=support_bot
-    volumes:
-      - mongodb_data:/data/db
     ports:
       - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=support_bot
     networks:
-      - bot-network
+      - telegram-bot-network
+
+  # LocalStack for S3 Storage
+  localstack:
+    image: localstack/localstack:latest
+    container_name: telegram-bot-localstack
+    restart: unless-stopped
+    ports:
+      - "4566:4566"  # LocalStack gateway
+      - "4510-4559:4510-4559"  # External services port range
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+      - DATA_DIR=/var/lib/localstack/data
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - DEFAULT_REGION=us-east-1
+    volumes:
+      - "./localstack-data:/var/lib/localstack"  # Persistent S3 storage
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - telegram-bot-network
+
+  # Telegram Bot Application
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: telegram-bot-app
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_started
+      localstack:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+    environment:
+      # Bot Configuration
+      - BOT_TOKEN=${BOT_TOKEN}
+      - MONGODB_URI=${MONGODB_URI}
+      - TECH_GROUP_ID=${TECH_GROUP_ID}
+      - ARCHIVE_GROUP_ID=${ARCHIVE_GROUP_ID}
+      - OWNER_ID=${OWNER_ID}
+      
+      # S3 Configuration (NEW)
+      - S3_ENDPOINT=http://localstack:4566
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      
+      # Node Environment
+      - NODE_ENV=production
+    networks:
+      - telegram-bot-network
 
 volumes:
   mongodb_data:
+    driver: local
+  # Note: localstack-data is bind-mounted, not a named volume
+  # This allows easy access to files from host machine
 
 networks:
-  bot-network:
+  telegram-bot-network:
     driver: bridge

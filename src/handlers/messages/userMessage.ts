@@ -2,42 +2,29 @@ import { BotContext } from '../../types';
 import { Ticket, TicketStatus, ITicket } from '../../database/models/Ticket';
 import { loadConfig } from '../../config/loader';
 import { escapeMarkdown } from '../../utils/formatters';
+import { downloadAndUploadToS3 } from '../../services/s3Service';
 
 /**
  * Handles all messages from users in private chat
- * 
- * Logic:
- * 1. If user has active ticket → Forward to existing topic
- * 2. If no active ticket → Create new ticket with new topic
  */
 export async function handleUserMessage(ctx: BotContext): Promise<void> {
-  // Only process private DMs
   if (ctx.chat?.type !== 'private') return;
-  
-  // Ignore commands (they have their own handlers)
   if (ctx.message?.text?.startsWith('/')) return;
-  
-  // Must have a message
   if (!ctx.message || !ctx.from) return;
   
   const userId = ctx.from.id;
   
   try {
-    // ===== STEP 1: Check if user has active ticket =====
-    // Active = OPEN or IN_PROGRESS (not CLOSED)
-    // Sort by createdAt desc to get the most recent active ticket
     const activeTicket = await Ticket.findOne({
       userId,
       status: { $in: [TicketStatus.OPEN, TicketStatus.IN_PROGRESS] }
     }).sort({ createdAt: -1 });
     
     if (activeTicket) {
-      console.log(`📨 User ${userId} replying to existing ticket ${activeTicket.ticketId} (status: ${activeTicket.status})`);
-      // ===== State: Existing Ticket =====
+      console.log(`📨 User ${userId} replying to existing ticket ${activeTicket.ticketId}`);
       await forwardUserMessageToTopic(ctx, activeTicket);
     } else {
       console.log(`🎫 Creating new ticket for user ${userId}`);
-      // ===== State: New Ticket =====
       await createNewTicketWithTopic(ctx);
     }
   } catch (error) {
@@ -57,11 +44,10 @@ async function createNewTicketWithTopic(ctx: BotContext): Promise<void> {
   const user = ctx.from!;
   const message = ctx.message!;
   
-  // Extract message content
   const messageText = extractMessageText(message);
   const { hasMedia, mediaType, fileId } = extractMediaInfo(message);
   
-  // ===== STEP 1: Create ticket in database =====
+  // Create ticket in database
   const ticket = new Ticket({
     userId: user.id,
     username: user.username,
@@ -73,25 +59,22 @@ async function createNewTicketWithTopic(ctx: BotContext): Promise<void> {
     messages: []
   });
   
-  await ticket.save(); // This generates the ticketId
+  await ticket.save();
   
-  // ===== STEP 2: Create forum topic =====
+  // Create forum topic
   const topicName = `${ticket.ticketId} - ${user.first_name}`;
   
   try {
     const forumTopic = await ctx.api.createForumTopic(
       config.groups.technician_group_id,
       topicName,
-      {
-        icon_color: 0x6FB9F0  // Blue color
-      }
+      { icon_color: 0x6FB9F0 }
     );
     
-    // ===== STEP 3: Update ticket with topic info =====
     ticket.topicId = forumTopic.message_thread_id;
     ticket.topicName = topicName;
     
-    // ===== STEP 4: Send initial message to topic =====
+    // Send initial message to topic
     const initialTopicMessage = formatInitialTopicMessage(ticket, user, messageText);
     
     const sentMessage = await ctx.api.sendMessage(
@@ -103,19 +86,35 @@ async function createNewTicketWithTopic(ctx: BotContext): Promise<void> {
       }
     );
     
-    // ===== STEP 5: Forward media if present =====
-    if (hasMedia) {
-      await ctx.api.copyMessage(
-        config.groups.technician_group_id,
-        ctx.chat!.id,
-        message.message_id,
-        {
-          message_thread_id: ticket.topicId
-        }
-      );
+    // Handle media upload to S3
+    let s3Key: string | undefined;
+    let s3Url: string | undefined;
+    
+    if (hasMedia && fileId) {
+      try {
+        const s3Result = await downloadAndUploadToS3(
+          config.bot.token,
+          fileId,
+          ticket.ticketId,
+          mediaType || 'unknown'
+        );
+        s3Key = s3Result.s3Key;
+        s3Url = s3Result.s3Url;
+        
+        // Forward media to topic
+        await ctx.api.copyMessage(
+          config.groups.technician_group_id,
+          ctx.chat!.id,
+          message.message_id,
+          { message_thread_id: ticket.topicId }
+        );
+      } catch (error) {
+        console.error('Failed to upload media to S3:', error);
+        // Continue without S3 - we still have fileId
+      }
     }
     
-    // ===== STEP 6: Save to transcript =====
+    // Save to transcript
     ticket.messages.push({
       from: 'user',
       text: messageText,
@@ -124,12 +123,13 @@ async function createNewTicketWithTopic(ctx: BotContext): Promise<void> {
       topicMessageId: sentMessage.message_id,
       hasMedia,
       mediaType,
-      fileId
+      fileId,
+      s3Key,
+      s3Url
     });
     
     await ticket.save();
     
-    // ===== STEP 7: Confirm to user =====
     await ctx.reply(
       `✅ *Ticket Created: ${ticket.ticketId}*\n\n` +
       `Your message has been sent to our support team.\n` +
@@ -142,15 +142,12 @@ async function createNewTicketWithTopic(ctx: BotContext): Promise<void> {
     
     console.log(
       `✅ Created ticket ${ticket.ticketId} for user ${user.id} ` +
-      `(topicId: ${ticket.topicId}, status: ${ticket.status})`
+      `(topicId: ${ticket.topicId}${s3Url ? ', media stored in S3' : ''})`
     );
     
   } catch (error) {
     console.error('Error creating forum topic:', error);
-    
-    // Clean up ticket if topic creation failed
     await Ticket.deleteOne({ _id: ticket._id });
-    
     throw error;
   }
 }
@@ -165,11 +162,8 @@ async function forwardUserMessageToTopic(
   const config = loadConfig();
   const message = ctx.message!;
   
-  // Check if topic still exists
   if (!ticket.topicId) {
     console.log(`⚠️ Ticket ${ticket.ticketId} has no topicId, closing and creating new ticket`);
-    
-    // Close the broken ticket
     ticket.status = TicketStatus.CLOSED;
     ticket.closedAt = new Date();
     await ticket.save();
@@ -184,24 +178,50 @@ async function forwardUserMessageToTopic(
   
   const messageText = extractMessageText(message);
   const { hasMedia, mediaType, fileId } = extractMediaInfo(message);
-  const user = ctx.from!
+  const user = ctx.from!;
   
   try {
-    // ===== Forward to topic =====
     let sentMessage;
+    let s3Key: string | undefined;
+    let s3Url: string | undefined;
     
-    if (hasMedia) {
-      // Copy media to topic
-      sentMessage = await ctx.api.copyMessage(
-        ticket.techGroupChatId,
-        ctx.chat!.id,
-        message.message_id,
-        {
-          message_thread_id: ticket.topicId,
-          caption: messageText ? `📨 *From ${user.username} (${ticket.ticketId}):*\n\n${messageText}` : undefined,
-          parse_mode: 'Markdown'
-        }
-      );
+    // Handle media upload to S3
+    if (hasMedia && fileId) {
+      try {
+        const s3Result = await downloadAndUploadToS3(
+          config.bot.token,
+          fileId,
+          ticket.ticketId,
+          mediaType || 'unknown'
+        );
+        s3Key = s3Result.s3Key;
+        s3Url = s3Result.s3Url;
+        
+        // Copy media to topic
+        sentMessage = await ctx.api.copyMessage(
+          ticket.techGroupChatId,
+          ctx.chat!.id,
+          message.message_id,
+          {
+            message_thread_id: ticket.topicId,
+            caption: messageText ? `📨 *From ${user.username} (${ticket.ticketId}):*\n\n${messageText}` : undefined,
+            parse_mode: 'Markdown'
+          }
+        );
+      } catch (error) {
+        console.error('Failed to upload media to S3:', error);
+        // Continue without S3 - still forward the message
+        sentMessage = await ctx.api.copyMessage(
+          ticket.techGroupChatId,
+          ctx.chat!.id,
+          message.message_id,
+          {
+            message_thread_id: ticket.topicId,
+            caption: messageText ? `📨 *From ${user.username} (${ticket.ticketId}):*\n\n${messageText}` : undefined,
+            parse_mode: 'Markdown'
+          }
+        );
+      }
     } else {
       // Send text message
       sentMessage = await ctx.api.sendMessage(
@@ -214,7 +234,7 @@ async function forwardUserMessageToTopic(
       );
     }
     
-    // ===== Save to transcript =====
+    // Save to transcript
     ticket.messages.push({
       from: 'user',
       text: messageText,
@@ -223,30 +243,26 @@ async function forwardUserMessageToTopic(
       topicMessageId: sentMessage.message_id,
       hasMedia,
       mediaType,
-      fileId
+      fileId,
+      s3Key,
+      s3Url
     });
-    
-    // DON'T change status - keep it as is (OPEN or IN_PROGRESS)
-    // The ticket stays active until /close is used
     
     await ticket.save();
     
     console.log(
-      `✅ Forwarded user message to topic for ticket ${ticket.ticketId} ` +
-      `(status: ${ticket.status})`
+      `✅ Forwarded user message to topic for ticket ${ticket.ticketId}` +
+      `${s3Url ? ' (media stored in S3)' : ''}`
     );
     
   } catch (error: any) {
     console.error('Error forwarding to topic:', error);
     
-    // Check if topic was deleted
     if (
       error.description?.includes('thread not found') || 
       error.description?.includes('message thread not found')
     ) {
       console.log(`⚠️ Topic for ticket ${ticket.ticketId} was deleted, closing and creating new ticket`);
-      
-      // Close the broken ticket
       ticket.status = TicketStatus.CLOSED;
       ticket.closedAt = new Date();
       await ticket.save();
@@ -263,24 +279,12 @@ async function forwardUserMessageToTopic(
   }
 }
 
-/**
- * Helper: Extract text from message
- */
 function extractMessageText(message: any): string {
-  if ('text' in message && message.text) {
-    return message.text;
-  }
-  
-  if ('caption' in message && message.caption) {
-    return message.caption;
-  }
-  
+  if ('text' in message && message.text) return message.text;
+  if ('caption' in message && message.caption) return message.caption;
   return '[Media message]';
 }
 
-/**
- * Helper: Extract media information
- */
 function extractMediaInfo(message: any): {
   hasMedia: boolean;
   mediaType?: 'photo' | 'document' | 'voice' | 'video' | 'audio' | 'sticker';
@@ -337,9 +341,6 @@ function extractMediaInfo(message: any): {
   return { hasMedia: false };
 }
 
-/**
- * Helper: Format initial topic message
- */
 function formatInitialTopicMessage(
   ticket: ITicket,
   user: any,

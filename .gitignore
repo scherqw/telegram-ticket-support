@@ -1,31 +1,43 @@
 # Dependencies
 node_modules/
 
-# Build output
+# Production Build
 dist/
-*.js.map
+build/
 
-# Environment variables
+# Environment Variables (Critical for security)
 .env
-
-# Configuration (keep sample only)
-config/config.yaml
+.env.local
+.env.development
+.env.test
+.env.production
+# Keep the example file to let others know what vars are needed
+!.env.example
 
 # Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 logs/
 *.log
-npm-debug.log*
 
-# OS files
-.DS_Store
-Thumbs.db
-
-# IDE
+# IDE & Editor configs
 .vscode/
 .idea/
 *.swp
 *.swo
+.DS_Store
+Thumbs.db
 
-# Database
-data/
-*.db
+# Docker / LocalStack Data
+# (If you are mapping volumes locally in docker-compose.yml)
+mongo-data/
+.localstack/
+localstack-data/
+
+# Testing coverage
+coverage/
+
+# Optional: Configuration
+# If you edit config.yaml locally with secrets, uncomment the line below:
+config/config.yaml

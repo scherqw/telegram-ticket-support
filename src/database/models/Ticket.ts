@@ -23,6 +23,10 @@ export interface ITicketMessage {
   hasMedia?: boolean;
   mediaType?: 'photo' | 'document' | 'voice' | 'video' | 'audio' | 'sticker';
   fileId?: string;             // Telegram file_id for media
+  
+  // S3 storage (NEW)
+  s3Key?: string;              // S3 object key: "tickets/TICK-0001/photo_123.jpg"
+  s3Url?: string;              // Full S3 URL for accessing the file
 }
 
 export interface ITicket extends Document {
@@ -61,7 +65,7 @@ export interface ITicket extends Document {
   categorizedBy?: number;      // Technician who categorized
   categorizedAt?: Date;        // When it was categorized
   
-  // === Archive (NEW) ===
+  // === Archive ===
   archivedAt?: Date;           // When ticket was archived
   archiveTopicId?: number;     // Topic ID in archive group
   archiveTopicName?: string;   // Topic name in archive
@@ -70,7 +74,6 @@ export interface ITicket extends Document {
   createdAt: Date;
   updatedAt: Date;
   closedAt?: Date;
-  topicDeletionScheduledAt?: Date;
 }
 
 const TicketSchema = new Schema<ITicket>({
@@ -96,7 +99,7 @@ const TicketSchema = new Schema<ITicket>({
   topicId: {
     type: Number,
     index: true,
-    sparse: true  // Allow null, but index if exists
+    sparse: true
   },
   topicName: String,
   techGroupChatId: {
@@ -134,7 +137,10 @@ const TicketSchema = new Schema<ITicket>({
     technicianName: String,
     hasMedia: Boolean,
     mediaType: String,
-    fileId: String
+    fileId: String,
+    // NEW: S3 fields
+    s3Key: String,
+    s3Url: String
   }],
   
   initialMessage: {
@@ -170,31 +176,44 @@ const TicketSchema = new Schema<ITicket>({
   categorizedBy: Number,
   categorizedAt: Date,
   
-  // === Archive (NEW) ===
+  // === Archive ===
   archivedAt: Date,
   archiveTopicId: Number,
   archiveTopicName: String,
   
   // === Timestamps ===
   closedAt: Date,
-  topicDeletionScheduledAt: Date
 }, {
   timestamps: true
 });
 
 // === Indexes for Performance ===
-TicketSchema.index({ userId: 1, status: 1 });           // Find active ticket for user
-TicketSchema.index({ topicId: 1, status: 1 });          // Find ticket by topic
-TicketSchema.index({ status: 1, closedAt: 1 });         // Closed tickets query
-TicketSchema.index({ topicDeletionScheduledAt: 1 });    // Cleanup job query
-TicketSchema.index({ categories: 1, status: 1 });       // NEW: Filter by category
-TicketSchema.index({ 'rating.stars': 1 });              // NEW: Rating queries
+TicketSchema.index({ userId: 1, status: 1 });
+TicketSchema.index({ topicId: 1, status: 1 });
+TicketSchema.index({ status: 1, closedAt: 1 });
+TicketSchema.index({ categories: 1, status: 1 });
+TicketSchema.index({ 'rating.stars': 1 });
 
 // === Auto-generate Ticket IDs ===
+// UPDATED: Finds the last ticket ID and increments, instead of counting documents.
 TicketSchema.pre('validate', async function() {
   if (this.isNew && !this.ticketId) {
-    const count = await mongoose.model('Ticket').countDocuments();
-    this.ticketId = `TICK-${String(count + 1).padStart(4, '0')}`;
+    // Find the latest ticket by sorting ID descending
+    const lastTicket = await mongoose.model('Ticket').findOne({}, { ticketId: 1 }).sort({ ticketId: -1 });
+    
+    let nextNum = 1;
+    
+    if (lastTicket && lastTicket.ticketId) {
+      const parts = lastTicket.ticketId.split('-');
+      if (parts.length === 2) {
+        const num = parseInt(parts[1], 10);
+        if (!isNaN(num)) {
+          nextNum = num + 1;
+        }
+      }
+    }
+    
+    this.ticketId = `TICK-${String(nextNum).padStart(4, '0')}`;
   }
 });
 
