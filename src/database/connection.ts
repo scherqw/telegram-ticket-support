@@ -2,9 +2,6 @@ import mongoose from 'mongoose';
 
 let isConnected = false;
 
-/**
- * Connects to MongoDB
- */
 export async function connectDatabase(uri: string): Promise<void> {
   if (isConnected) {
     console.log('📦 Using existing database connection');
@@ -20,7 +17,6 @@ export async function connectDatabase(uri: string): Promise<void> {
     isConnected = true;
     console.log('✅ Connected to MongoDB');
 
-    // Connection event handlers
     mongoose.connection.on('error', (err) => {
       console.error('❌ MongoDB error:', err);
       isConnected = false;
@@ -42,13 +38,8 @@ export async function connectDatabase(uri: string): Promise<void> {
   }
 }
 
-/**
- * Disconnects from MongoDB
- */
 export async function disconnectDatabase(): Promise<void> {
-  if (!isConnected) {
-    return;
-  }
+  if (!isConnected) return;
 
   try {
     await mongoose.disconnect();
@@ -60,9 +51,6 @@ export async function disconnectDatabase(): Promise<void> {
   }
 }
 
-/**
- * Gets connection status
- */
 export function isDatabaseConnected(): boolean {
   return isConnected;
 }

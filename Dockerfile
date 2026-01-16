@@ -1,42 +1,49 @@
-# Use official Node.js LTS image
 FROM node:18-alpine
 
-# Set working directory
+# Install ffmpeg for audio conversion
+RUN apk add --no-cache ffmpeg
+
 WORKDIR /app
 
-# Copy package files
+# Copy root package files
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Install ALL dependencies (including dev dependencies for build)
+# Install backend dependencies
 RUN npm ci
 
-# Install TypeScript and ts-node globally for build
+# Install TypeScript globally for build
 RUN npm install -g typescript ts-node
 
 # Copy source code
 COPY src ./src
 COPY config ./config
 
-# Build TypeScript to JavaScript
+# Build backend
 RUN npm run build
 
-# Remove dev dependencies and TypeScript after build
+# Build webapp
+COPY webapp/package*.json ./webapp/
+WORKDIR /app/webapp
+RUN npm ci
+COPY webapp ./
+RUN npm run build
+
+# Back to root
+WORKDIR /app
+
+# Remove dev dependencies and TypeScript
 RUN npm prune --production && \
     npm uninstall -g typescript ts-node
 
 # Create logs directory
 RUN mkdir -p /app/logs
 
-# Set environment to production
 ENV NODE_ENV=production
 
-# Expose ports (not strictly necessary for bot, but good practice)
 EXPOSE 3000
 
-# Health check (optional - checks if process is running)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD node -e "console.log('healthy')" || exit 1
 
-# Run the application
 CMD ["node", "dist/index.js"]

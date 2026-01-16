@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # MongoDB Database
   mongodb:
-    image: mongo:7.0
+    image: mongo:latest
     container_name: telegram-bot-mongodb
     restart: unless-stopped
     ports:
@@ -21,16 +21,14 @@ services:
     container_name: telegram-bot-localstack
     restart: unless-stopped
     ports:
-      - "4566:4566"  # LocalStack gateway
-      - "4510-4559:4510-4559"  # External services port range
+      - "4566:4566"
     environment:
       - SERVICES=s3
       - DEBUG=1
       - DATA_DIR=/var/lib/localstack/data
-      - DOCKER_HOST=unix:///var/run/docker.sock
       - DEFAULT_REGION=us-east-1
     volumes:
-      - "./localstack-data:/var/lib/localstack"  # Persistent S3 storage
+      - "./localstack-data:/var/lib/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
@@ -53,6 +51,8 @@ services:
         condition: service_started
       localstack:
         condition: service_healthy
+    ports:
+      - "3000:3000"
     volumes:
       - ./config:/app/config
       - ./logs:/app/logs
@@ -60,12 +60,16 @@ services:
       # Bot Configuration
       - BOT_TOKEN=${BOT_TOKEN}
       - MONGODB_URI=${MONGODB_URI}
-      - TECH_GROUP_ID=${TECH_GROUP_ID}
-      - ARCHIVE_GROUP_ID=${ARCHIVE_GROUP_ID}
       - OWNER_ID=${OWNER_ID}
+      - TECHNICIAN_IDS=${TECHNICIAN_IDS}
       
-      # S3 Configuration (NEW)
+      # Web App Configuration
+      - WEBAPP_URL=${WEBAPP_URL}
+      - WEBAPP_PORT=3000
+      
+      # S3 Configuration
       - S3_ENDPOINT=http://localstack:4566
+      - S3_PUBLIC_ENDPOINT=http://localhost:4566
       - AWS_REGION=us-east-1
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
@@ -78,8 +82,6 @@ services:
 volumes:
   mongodb_data:
     driver: local
-  # Note: localstack-data is bind-mounted, not a named volume
-  # This allows easy access to files from host machine
 
 networks:
   telegram-bot-network:

@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/api/client.ts","./src/components/archivedtickets.tsx","./src/components/dashboard.tsx","./src/components/messagelist.tsx","./src/components/navigation.tsx","./src/components/opentickets.tsx","./src/components/ticketdetail.tsx","./src/components/voiceplayer.tsx","./src/hooks/usetelegram.ts"],"version":"5.9.3"}

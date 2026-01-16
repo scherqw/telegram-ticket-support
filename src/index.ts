@@ -3,8 +3,10 @@ import { BotContext } from './types';
 import { loadConfig } from './config/loader';
 import { connectDatabase } from './database/connection';
 import { logger } from './middleware/logger';
-import { validateConfiguration } from './utils/validateConfig';
 import { ensureBucketExists } from './services/s3Service';
+import { createApp } from './server/app';
+import { setBotInstance as setMessageControllerBot } from './server/controllers/messageController';
+import { setBotInstance as setMediaControllerBot } from './server/controllers/mediaController';
 
 // Command handlers
 import { handleStart } from './handlers/commands/start';
@@ -17,22 +19,14 @@ import { handleFAQCallback } from './handlers/faq/callback';
 // Rating handlers
 import { handleRatingCallback } from './handlers/rating/ratingHandler';
 
-// Categorization handlers
-import { handleCategoryCallback } from './handlers/categorization/categoryHandler';
-
 // Message handlers
 import { handleUserMessage } from './handlers/messages/userMessage';
-import { handleTechnicianMessage } from './handlers/messages/technicianMessage';
 
 // Ticket management
 import { showUserTickets } from './handlers/tickets/list';
 
-// Technician handlers
-import { listOpenTickets } from './handlers/technician/list';
-import { closeTicket } from './handlers/technician/close';
-
 async function main() {
-  console.log('🤖 Starting Telegram Support Bot v3 (Forum Topics + S3 Edition)...\n');
+  console.log('🤖 Starting Telegram Support Bot (Web App Edition)...\n');
 
   // ===== Load Configuration =====
   const config = loadConfig();
@@ -54,8 +48,9 @@ async function main() {
   const bot = new Bot<BotContext>(config.bot.token);
   console.log('✅ Bot initialized');
 
-  // ===== Validate Configuration =====
-  await validateConfiguration(bot.api, config);
+  // Set bot instances for controllers
+  setMessageControllerBot(bot);
+  setMediaControllerBot(bot);
 
   // ===== Middleware =====
   bot.use(logger);
@@ -81,12 +76,6 @@ async function main() {
   bot.callbackQuery(/^rate:/, handleRatingCallback);
 
   // =========================================================================
-  // CATEGORIZATION SYSTEM
-  // =========================================================================
-
-  bot.callbackQuery(/^cat:/, handleCategoryCallback);
-
-  // =========================================================================
   // USER TICKET MANAGEMENT (Private DM only)
   // =========================================================================
 
@@ -97,18 +86,10 @@ async function main() {
   });
 
   // =========================================================================
-  // TECHNICIAN COMMANDS (Tech group only)
-  // =========================================================================
-
-  bot.command('open', listOpenTickets);
-  bot.command('close', closeTicket);
-
-  // =========================================================================
-  // MESSAGE ROUTING (The Core Logic!)
+  // MESSAGE ROUTING (Users only - no technician group logic)
   // =========================================================================
 
   bot.on('message', async (ctx) => {
-    await handleTechnicianMessage(ctx);
     await handleUserMessage(ctx);
   });
 
@@ -122,6 +103,15 @@ async function main() {
   });
 
   // =========================================================================
+  // START EXPRESS SERVER
+  // =========================================================================
+
+  const app = createApp();
+  const server = app.listen(config.webapp.port, () => {
+    console.log(`🌐 Web App server running on port ${config.webapp.port}`);
+  });
+
+  // =========================================================================
   // START BOT
   // =========================================================================
 
@@ -129,11 +119,10 @@ async function main() {
     onStart: (botInfo) => {
       console.log('\n✅ Bot is running!');
       console.log(`📱 Username: @${botInfo.username}`);
-      console.log(`🏢 Tech Group: ${config.groups.technician_group_id}`);
-      console.log(`📋 General Topic: ${config.topics.general_topic_id}`);
+      console.log(`🌐 Web App URL: ${config.webapp.url}`);
       console.log(`📦 S3 Storage: ${process.env.S3_ENDPOINT || 'http://localstack:4566'}`);
-      console.log(`\n💡 Users can now DM the bot directly to create tickets!\n`);
-      console.log(`📎 Media files will be stored in S3 and referenced in MongoDB\n`);
+      console.log(`\n💡 Technicians can access the dashboard via menu button`);
+      console.log(`💡 Users can send messages to create tickets\n`);
     }
   });
 
@@ -143,6 +132,7 @@ async function main() {
 
   const shutdown = async (signal: string) => {
     console.log(`\n⏹️  Received ${signal}, shutting down...`);
+    server.close();
     await bot.stop();
     process.exit(0);
   };

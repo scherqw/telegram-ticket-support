@@ -1,0 +1,210 @@
+import { Router } from 'express';
+import { Ticket, TicketStatus } from '../../database/models/Ticket';
+import { AuthRequest } from '../middleware/auth';
+import multer from 'multer';
+import { handleMediaUpload } from '../controllers/mediaController';
+import { sendMessageToUser } from '../controllers/messageController';
+import { sendRatingRequest } from '../../handlers/rating/ratingHandler';
+import { loadConfig } from '../../config/loader';
+
+const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Get all open tickets
+router.get('/open', async (req: AuthRequest, res) => {
+  try {
+    const tickets = await Ticket.find({
+      status: { $in: [TicketStatus.OPEN, TicketStatus.IN_PROGRESS] }
+    })
+      .sort({ hasUnreadMessages: -1, lastMessageAt: -1 })
+      .limit(100);
+
+    res.json({ tickets });
+  } catch (error) {
+    console.error('Error fetching tickets:', error);
+    res.status(500).json({ error: 'Failed to fetch tickets' });
+  }
+});
+
+// Get archived tickets
+router.get('/archived', async (req: AuthRequest, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = 50;
+    const skip = (page - 1) * limit;
+
+    const tickets = await Ticket.find({ status: TicketStatus.CLOSED })
+      .sort({ closedAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Ticket.countDocuments({ status: TicketStatus.CLOSED });
+
+    res.json({
+      tickets,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching archived tickets:', error);
+    res.status(500).json({ error: 'Failed to fetch archived tickets' });
+  }
+});
+
+// Get single ticket details
+router.get('/:ticketId', async (req: AuthRequest, res) => {
+  try {
+    const ticket = await Ticket.findOne({ ticketId: req.params.ticketId });
+
+    if (!ticket) {
+      res.status(404).json({ error: 'Ticket not found' });
+      return;
+    }
+
+    res.json({ ticket });
+  } catch (error) {
+    console.error('Error fetching ticket:', error);
+    res.status(500).json({ error: 'Failed to fetch ticket' });
+  }
+});
+
+// Mark messages as read
+router.post('/:ticketId/read', async (req: AuthRequest, res) => {
+  try {
+    const ticket = await Ticket.findOne({ ticketId: req.params.ticketId });
+
+    if (!ticket) {
+      res.status(404).json({ error: 'Ticket not found' });
+      return;
+    }
+
+    ticket.hasUnreadMessages = false;
+    
+    // Mark all user messages as read
+    ticket.messages.forEach(msg => {
+      if (msg.from === 'user') {
+        msg.isRead = true;
+      }
+    });
+    
+    await ticket.save();
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error marking as read:', error);
+    res.status(500).json({ error: 'Failed to mark as read' });
+  }
+});
+
+// Send text message
+router.post('/:ticketId/reply', async (req: AuthRequest, res) => {
+  try {
+    const { message } = req.body;
+    const ticket = await Ticket.findOne({ ticketId: req.params.ticketId });
+
+    if (!ticket) {
+      res.status(404).json({ error: 'Ticket not found' });
+      return;
+    }
+
+    await sendMessageToUser(
+      ticket,
+      message,
+      req.telegramUser!
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error sending reply:', error);
+    res.status(500).json({ error: 'Failed to send reply' });
+  }
+});
+
+// Upload and send media
+router.post('/:ticketId/media', upload.single('file'), async (req: AuthRequest, res) => {
+  try {
+    const ticket = await Ticket.findOne({ ticketId: req.params.ticketId });
+
+    if (!ticket) {
+      res.status(404).json({ error: 'Ticket not found' });
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).json({ error: 'No file uploaded' });
+      return;
+    }
+
+    await handleMediaUpload(
+      ticket,
+      req.file,
+      req.body.caption || '',
+      req.telegramUser!
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error uploading media:', error);
+    res.status(500).json({ error: 'Failed to upload media' });
+  }
+});
+
+// Close ticket
+router.post('/:ticketId/close', async (req: AuthRequest, res) => {
+  try {
+    const { categories } = req.body;
+    const ticket = await Ticket.findOne({ ticketId: req.params.ticketId });
+
+    if (!ticket) {
+      res.status(404).json({ error: 'Ticket not found' });
+      return;
+    }
+
+    ticket.status = TicketStatus.CLOSED;
+    ticket.closedAt = new Date();
+    
+    if (categories && categories.length > 0) {
+      ticket.categories = categories;
+      ticket.categorizedBy = req.telegramUser!.id;
+      ticket.categorizedAt = new Date();
+    }
+
+    await ticket.save();
+
+    // Send closure message to user
+    const config = loadConfig();
+    const { Bot } = await import('grammy');
+    const bot = new Bot(config.bot.token);
+    
+    try {
+      await bot.api.sendMessage(
+        ticket.userId,
+        `✅ *Ticket Closed: ${ticket.ticketId}*\n\n` +
+        `Your support ticket has been resolved.\n\n` +
+        `If you need further assistance, just send a new message!\n\n` +
+        `Thank you for contacting support!`,
+        { parse_mode: 'Markdown' }
+      );
+      
+      // Send rating request if enabled
+      if (config.features.enable_ratings) {
+        setTimeout(() => {
+          sendRatingRequest(ticket.userId, ticket.ticketId, bot.api);
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Could not notify user:', error);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error closing ticket:', error);
+    res.status(500).json({ error: 'Failed to close ticket' });
+  }
+});
+
+export { router as ticketRoutes };

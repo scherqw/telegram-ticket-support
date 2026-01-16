@@ -2,9 +2,6 @@ import { BotContext } from '../../types';
 import { Ticket, TicketStatus } from '../../database/models/Ticket';
 import { formatTicketStatus, formatDate } from '../../utils/formatters';
 
-/**
- * Shows user's tickets
- */
 export async function showUserTickets(ctx: BotContext): Promise<void> {
   if (!ctx.from) return;
 
@@ -21,7 +18,6 @@ export async function showUserTickets(ctx: BotContext): Promise<void> {
     let message = '📋 *Your Recent Tickets*\n\n';
 
     tickets.forEach(ticket => {
-      // Handle legacy tickets that might not have initialMessage
       const preview = ticket.initialMessage 
         ? (ticket.initialMessage.length > 60 
             ? ticket.initialMessage.substring(0, 60) + '...'

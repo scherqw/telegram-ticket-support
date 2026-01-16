@@ -1,9 +1,6 @@
 import { NextFunction } from 'grammy';
 import { BotContext } from '../types';
 
-/**
- * Logging middleware
- */
 export async function logger(
   ctx: BotContext,
   next: NextFunction

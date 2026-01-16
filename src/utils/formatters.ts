@@ -1,8 +1,5 @@
 import { TicketStatus } from '../database/models/Ticket';
 
-/**
- * Formats a date for display
- */
 export function formatDate(date: Date): string {
   return date.toLocaleString('en-US', {
     year: 'numeric',
@@ -13,9 +10,6 @@ export function formatDate(date: Date): string {
   });
 }
 
-/**
- * Formats ticket status with emoji
- */
 export function formatTicketStatus(status: TicketStatus): string {
   switch (status) {
     case TicketStatus.OPEN:
@@ -29,16 +23,11 @@ export function formatTicketStatus(status: TicketStatus): string {
   }
 }
 
-/**
- * Truncates text to specified length
- */
 export function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength - 3) + '...';
 }
 
-/**
- * Escapes markdown special characters
- */
 export function escapeMarkdown(text: string): string {
-  return text.replace(/[_*`[]/g, '\\$&');}
+  return text.replace(/[_*`[]/g, '\\$&');
+}
