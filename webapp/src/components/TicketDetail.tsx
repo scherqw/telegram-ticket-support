@@ -240,7 +240,7 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
           <div className="flex gap-1">
             {ticket.status === 'escalated' && (
               <span className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-bold border border-amber-200">
-                ⚡ Escalated
+                Escalated
               </span>
             )}
             {ticket.status === 'in_progress' && (

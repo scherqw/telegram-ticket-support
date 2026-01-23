@@ -20,7 +20,11 @@ export async function handleUserMessage(ctx: BotContext): Promise<void> {
   try {
     const activeTicket = await Ticket.findOne({
       userId,
-      status: { $in: [TicketStatus.OPEN, TicketStatus.IN_PROGRESS] }
+      status: { $in: [
+        TicketStatus.OPEN,
+        TicketStatus.IN_PROGRESS,
+        TicketStatus.ESCALATED
+      ] }
     }).sort({ createdAt: -1 });
     
     if (activeTicket) {
