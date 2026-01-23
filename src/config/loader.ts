@@ -26,8 +26,16 @@ export function loadConfig(): BotConfig {
     if (process.env.WEBAPP_PORT) {
       config.webapp.port = Number(process.env.WEBAPP_PORT);
     }
+    if (process.env.TELEGRAM_APP_LINK) {
+      config.webapp.telegram_link = process.env.TELEGRAM_APP_LINK;
+    }
     if (process.env.TECHNICIAN_IDS) {
       config.admin.technician_ids = process.env.TECHNICIAN_IDS
+        .split(',')
+        .map(id => Number(id.trim()));
+    }
+    if (process.env.LEVEL2_IDS) {
+      config.admin.level2_ids = process.env.LEVEL2_IDS
         .split(',')
         .map(id => Number(id.trim()));
     }

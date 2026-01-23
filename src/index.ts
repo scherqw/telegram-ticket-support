@@ -25,11 +25,13 @@ import { handleUserMessage } from './handlers/messages/userMessage';
 // Ticket management
 import { showUserTickets } from './handlers/tickets/list';
 
+export const config = loadConfig();
+export const bot = new Bot<BotContext>(config.bot.token);
+
 async function main() {
   console.log('🤖 Starting Telegram Support Bot (Web App Edition)...\n');
 
   // ===== Load Configuration =====
-  const config = loadConfig();
   console.log('✅ Configuration loaded');
 
   // ===== Connect to Database =====
@@ -45,7 +47,6 @@ async function main() {
   }
 
   // ===== Initialize Bot =====
-  const bot = new Bot<BotContext>(config.bot.token);
   console.log('✅ Bot initialized');
 
   // Set bot instances for controllers

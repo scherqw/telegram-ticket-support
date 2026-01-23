@@ -12,6 +12,7 @@ interface TelegramWebApp {
   initData: string;
   initDataUnsafe: {
     user?: TelegramUser;
+    start_param?: string;
   };
   ready: () => void;
   close: () => void;
@@ -47,6 +48,7 @@ export function useTelegram() {
   return {
     tg: window.Telegram?.WebApp,
     user: window.Telegram?.WebApp.initDataUnsafe.user,
+    startParam: window.Telegram?.WebApp.initDataUnsafe.start_param,
     initData: window.Telegram?.WebApp.initData || '',
     initDataUnsafe: window.Telegram?.WebApp.initDataUnsafe,
     isReady

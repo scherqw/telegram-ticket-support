@@ -24,6 +24,12 @@ interface SuccessResponse {
   success: boolean;
 }
 
+export interface Category {
+  id: string;
+  label: string;
+  description?: string;
+}
+
 class APIClient {
   private initData: string = '';
 
@@ -103,6 +109,18 @@ class APIClient {
       method: 'POST',
       body: JSON.stringify({ categories })
     });
+  }
+
+  async escalateTicket(ticketId: string, reason: string): Promise<SuccessResponse> {
+    return this.request<SuccessResponse>(`/tickets/${ticketId}/escalate`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
+    });
+  }
+
+  async getCategories(): Promise<Category[]> {
+    const response = await this.request<{ categories: Category[] }>('/tickets/categories');
+    return response.categories;
   }
 }
 

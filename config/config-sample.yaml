@@ -7,13 +7,23 @@ bot:
 database:
   uri: "mongodb://localhost:27017/support_bot"
 
-# Group IDs
+# Group IDs (Using Telegram Groups)
 groups:
-  technician_group_id: -1001234567890
+  technician_group_id:
+  archive_group_id:
+
+
+  
+# Web App Configuration
+webapp:
+  url: "https://dc68a21c08a2.ngrok-free.app"
+  telegram_link: "https://t.me/ticket_bostrat_bot/support"
+  port: 3000
 
 # Admin Configuration
 admin:
   owner_id: 123456789
+  level2_ids: [123456789]
 
 # Feature Flags
 features:

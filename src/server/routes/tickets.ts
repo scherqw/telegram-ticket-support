@@ -6,6 +6,8 @@ import { handleMediaUpload } from '../controllers/mediaController';
 import { sendMessageToUser } from '../controllers/messageController';
 import { sendRatingRequest } from '../../handlers/rating/ratingHandler';
 import { loadConfig } from '../../config/loader';
+import { bot } from '../../index'
+import { InlineKeyboard } from 'grammy';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -14,7 +16,11 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.get('/open', async (req: AuthRequest, res) => {
   try {
     const tickets = await Ticket.find({
-      status: { $in: [TicketStatus.OPEN, TicketStatus.IN_PROGRESS] }
+      status: { $in: [
+        TicketStatus.OPEN,
+        TicketStatus.IN_PROGRESS,
+        TicketStatus.ESCALATED
+      ]}
     })
       .sort({ hasUnreadMessages: -1, lastMessageAt: -1 })
       .limit(100);
@@ -52,6 +58,20 @@ router.get('/archived', async (req: AuthRequest, res) => {
   } catch (error) {
     console.error('Error fetching archived tickets:', error);
     res.status(500).json({ error: 'Failed to fetch archived tickets' });
+  }
+});
+
+router.get('/categories', (req: AuthRequest, res) => {
+  try {
+    const config = loadConfig();
+    
+    // We default to an empty array if undefined, just to be safe
+    const categories = config.categories || []; 
+    
+    res.json({ categories });
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    res.status(500).json({ error: 'Failed to fetch categories' });
   }
 });
 
@@ -206,5 +226,63 @@ router.post('/:ticketId/close', async (req: AuthRequest, res) => {
     res.status(500).json({ error: 'Failed to close ticket' });
   }
 });
+
+router.post('/:ticketId/escalate', async (req: AuthRequest, res) => {
+  try {
+    const { reason } = req.body;
+    const ticket = await Ticket.findOne({ ticketId: req.params.ticketId });
+
+    if (!ticket) {
+      res.status(400).json({ error: 'Ticket not found' });
+      return;
+    }
+
+    const config = loadConfig();
+    const level2Ids = config.admin.level2_ids || [];
+
+    if (level2Ids.length === 0) {
+      return res.status(400).json({ error: 'No level 2 technicians configured' });
+    }
+
+    ticket.status = TicketStatus.ESCALATED;
+    ticket.assignedTo = undefined;
+    ticket.assignedToName = undefined;
+
+    ticket.messages.push({
+      from: 'technician',
+      text: `Ticket ESCALATED to Level 2\nReason: ${reason || 'No reason provided'}`,
+      timestamp: new Date(),
+      technicianName: `${req.telegramUser?.username}`,
+      isRead: true
+    } as any);
+
+    await ticket.save();
+
+    const keyboard = new InlineKeyboard()
+      .url('Escalated Ticket', `${config.webapp.telegram_link}?startapp=${ticket.ticketId}`);
+
+    const messageText = 
+      `*ESCALATION ALERT*\n\n` +
+      `*Ticket:* ${ticket.ticketId}\n` +
+      `*Escalated By:* ${req.telegramUser?.first_name}\n` +
+      `*Reason:* ${reason}\n\n` +
+      `This ticket is now unassigned. The first to open it claims it.`;
+
+    const notifications = level2Ids.map(id => 
+      bot.api.sendMessage(id, messageText, {
+        parse_mode: 'Markdown',
+        reply_markup: keyboard
+      }).catch(error => console.error(`Failed to notify Level 2 technician ${id}`, error))
+    )
+
+    await Promise.all(notifications);
+
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error('Error escalating ticket:', error);
+    res.status(500).json({ error: 'Failed to escalate ticket' });
+  }
+})
 
 export { router as ticketRoutes };

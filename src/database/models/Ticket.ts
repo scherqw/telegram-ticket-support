@@ -3,7 +3,8 @@ import mongoose, { Schema, Document } from 'mongoose';
 export enum TicketStatus {
   OPEN = 'open',
   IN_PROGRESS = 'in_progress',
-  CLOSED = 'closed'
+  CLOSED = 'closed',
+  ESCALATED = 'escalated'
 }
 
 export interface ITicketMessage {

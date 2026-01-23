@@ -14,10 +14,12 @@ export interface BotConfig {
   webapp: {
     url: string;
     port: number;
+    telegram_link?: string;
   };
   admin: {
     owner_id: number;
     technician_ids: number[];
+    level2_ids?: number[];
   };
   features: {
     enable_faq: boolean;
