@@ -6,44 +6,86 @@ interface NavigationProps {
 
 export function Navigation({ currentView, onViewChange }: NavigationProps) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-      <div className="max-w-4xl mx-auto flex justify-around">
-        <button
-          onClick={() => onViewChange('dashboard')}
-          className={`flex-1 py-3 text-center transition ${
-            currentView === 'dashboard' 
-              ? 'text-blue-600 border-t-2 border-blue-600' 
-              : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          <div className="text-xl">📊</div>
-          <div className="text-xs mt-1">Dashboard</div>
-        </button>
+    // <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+    //   <div className="max-w-4xl mx-auto flex justify-around">
+    //     <button
+    //       onClick={() => onViewChange('dashboard')}
+    //       className={`flex-1 py-3 text-center transition ${
+    //         currentView === 'dashboard' 
+    //           ? 'text-blue-600 border-t-2 border-blue-600' 
+    //           : 'text-gray-600 hover:bg-gray-50'
+    //       }`}
+    //     >
+    //       <div className="text-xl">📊</div>
+    //       <div className="text-xs mt-1">Dashboard</div>
+    //     </button>
         
-        <button
-          onClick={() => onViewChange('open')}
-          className={`flex-1 py-3 text-center transition ${
-            currentView === 'open' 
-              ? 'text-blue-600 border-t-2 border-blue-600' 
-              : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          <div className="text-xl">🎫</div>
-          <div className="text-xs mt-1">Open Tickets</div>
-        </button>
+    //     <button
+    //       onClick={() => onViewChange('open')}
+    //       className={`flex-1 py-3 text-center transition ${
+    //         currentView === 'open' 
+    //           ? 'text-blue-600 border-t-2 border-blue-600' 
+    //           : 'text-gray-600 hover:bg-gray-50'
+    //       }`}
+    //     >
+    //       <div className="text-xl">🎫</div>
+    //       <div className="text-xs mt-1">Open Tickets</div>
+    //     </button>
         
-        <button
-          onClick={() => onViewChange('archived')}
-          className={`flex-1 py-3 text-center transition ${
-            currentView === 'archived' 
-              ? 'text-blue-600 border-t-2 border-blue-600' 
-              : 'text-gray-600 hover:bg-gray-50'
-          }`}
-        >
-          <div className="text-xl">📦</div>
-          <div className="text-xs mt-1">Archive</div>
-        </button>
-      </div>
+    //     <button
+    //       onClick={() => onViewChange('archived')}
+    //       className={`flex-1 py-3 text-center transition ${
+    //         currentView === 'archived' 
+    //           ? 'text-blue-600 border-t-2 border-blue-600' 
+    //           : 'text-gray-600 hover:bg-gray-50'
+    //       }`}
+    //     >
+    //       <div className="text-xl">📦</div>
+    //       <div className="text-xs mt-1">Archive</div>
+    //     </button>
+    //   </div>
+    // </nav>
+
+    // REMOVE 'fixed bottom-0 left-0 right-0' if they exist.
+    // Use 'w-full' and flex centering.
+    <nav className="flex justify-around items-center p-3 w-full bg-white text-xs font-medium text-gray-500">
+      
+      <button 
+        onClick={() => onViewChange('dashboard')}
+        className={`flex flex-col items-center gap-1 ${
+          currentView === 'dashboard' 
+          ? 'text-blue-600' 
+          : 'text-gray-600 hover:bg-gray-50'
+        }`}
+      >
+        <span className="text-xl">📊</span>
+        <span>Dashboard</span>
+      </button>
+
+      <button 
+        onClick={() => onViewChange('open')}
+        className={`flex flex-col items-center gap-1 ${
+          currentView === 'open' 
+          ? 'text-blue-600' 
+          : 'text-gray-600 hover:bg-gray-50'
+        }`}
+      >
+        <span className="text-xl">🎫</span>
+        <span>Open</span>
+      </button>
+
+      <button 
+        onClick={() => onViewChange('archived')}
+        className={`flex flex-col items-center gap-1 ${
+          currentView === 'archived' 
+          ? 'text-blue-600' 
+          : 'text-gray-600 hover:bg-gray-50'
+        }`}
+      >
+        <span className="text-xl">📁</span>
+        <span>Archived</span>
+      </button>
+
     </nav>
   );
 }

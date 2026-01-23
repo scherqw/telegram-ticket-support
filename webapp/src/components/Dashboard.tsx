@@ -32,10 +32,10 @@ export function Dashboard() {
       const { tickets } = await apiClient.getOpenTickets();
       
       const open = tickets.filter((t: any) => t.status === 'open').length;
-      const inProgress = tickets.filter((t: any) => t.status === 'in_progress').length;
+      const inProgress = tickets.filter((t: any) => t.status === 'in_progress' || t.status === 'escalated').length;
       const unread = tickets.filter((t: any) => t.hasUnreadMessages).length;
 
-      setStats({ open, inProgress, unread, closedToday: 0 });
+      setStats({ open, inProgress, unread, closedToday : 0 });
     } catch (error) {
       console.error('Failed to load stats:', error);
     } finally {

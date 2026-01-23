@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { apiClient } from '../api/client';
 import { MessageList } from './MessageList';
+import { CategoryModal } from './CategoryModal';
 
 interface TicketDetailProps {
   ticketId: string;
@@ -12,13 +13,16 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingMimeTypeRef = useRef<string>('');
 
+  // 1. Initial Load & Polling (Every 3 seconds)
   useEffect(() => {
     loadTicket();
-
     const intervalId = setInterval(() => {
       loadTicket();
     }, 3000);
@@ -26,15 +30,17 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
     return () => clearInterval(intervalId);
   }, [ticketId]);
 
+  // 2. Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [ticket?.messages.length]);
+  }, [ticket?.messages?.length]);
 
   async function loadTicket() {
     try {
       const { ticket } = await apiClient.getTicket(ticketId);
       setTicket(ticket);
-      
+
+      // Mark as read if needed
       if (ticket.hasUnreadMessages) {
         await apiClient.markAsRead(ticketId);
       }
@@ -43,8 +49,35 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
     }
   }
 
+  // --- ESCALATION LOGIC ---
+  async function handleEscalate(reasonInput?: string) {
+    const reason = reasonInput || prompt('Enter reason for escalation:');
+    if (!reason) return;
+
+    try {
+      setSending(true);
+      await apiClient.escalateTicket(ticketId, reason);
+      alert('✅ Ticket escalated and assigned to Level 2');
+      await loadTicket();
+    } catch (error) {
+      console.error('Escalation failed:', error);
+      alert('Failed to escalate ticket');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  // --- MESSAGING LOGIC ---
   async function sendMessage() {
     if (!message.trim() || sending) return;
+
+    // Check for Command: /escalate
+    if (message.toLowerCase().startsWith('/escalate')) {
+      const reason = message.substring(9).trim();
+      setMessage('');
+      await handleEscalate(reason || undefined);
+      return;
+    }
 
     setSending(true);
     try {
@@ -59,6 +92,7 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
     }
   }
 
+  // --- FILE UPLOAD LOGIC ---
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -69,7 +103,7 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
       setSending(true);
       await apiClient.uploadMedia(ticketId, file, caption);
       await loadTicket();
-      e.target.value = '';
+      e.target.value = ''; // Reset input
     } catch (error) {
       console.error('Failed to upload file:', error);
       alert('Failed to upload file');
@@ -77,22 +111,22 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
       setSending(false);
     }
   }
-  const recordingMimeTypeRef = useRef<string>('');
 
+  // --- VOICE RECORDING LOGIC ---
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      // 1. Detect supported MIME type (Fix for iOS/Safari)
+
+      // Detect supported MIME type (Fix for iOS/Safari)
       let mimeType = 'audio/webm';
       if (!MediaRecorder.isTypeSupported(mimeType)) {
-        mimeType = 'audio/mp4'; // iOS usually supports this
+        mimeType = 'audio/mp4';
         if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = ''; // Let the browser choose its default
+          mimeType = ''; // Browser default
         }
       }
-      
-      recordingMimeTypeRef.current = mimeType; // Save for later
+
+      recordingMimeTypeRef.current = mimeType;
 
       const options = mimeType ? { mimeType } : undefined;
       const mediaRecorder = new MediaRecorder(stream, options);
@@ -106,15 +140,14 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
       };
 
       mediaRecorder.onstop = async () => {
-        // 2. Use the DETECTED mime type, not hardcoded 'audio/webm'
         const finalMimeType = recordingMimeTypeRef.current || 'audio/webm';
         const fileExtension = finalMimeType.includes('mp4') ? 'm4a' : 'webm';
 
         const audioBlob = new Blob(audioChunksRef.current, { type: finalMimeType });
         const audioFile = new File([audioBlob], `voice.${fileExtension}`, { type: finalMimeType });
-        
+
         stream.getTracks().forEach(track => track.stop());
-        
+
         try {
           setSending(true);
           await apiClient.uploadMedia(ticketId, audioFile);
@@ -131,9 +164,8 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
       mediaRecorderRef.current = mediaRecorder;
       setRecording(true);
     } catch (error) {
-      console.error('Failed to access microphone or start recording:', error);
-      // Give a more specific error if possible
-      alert('Cannot access microphone. Ensure you are using HTTPS and have granted permissions.');
+      console.error('Failed to access microphone:', error);
+      alert('Cannot access microphone. Ensure you are using HTTPS.');
     }
   }
 
@@ -144,72 +176,104 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
     }
   }
 
-  async function closeTicket() {
-    const categoriesInput = prompt('Enter categories (comma-separated, optional):');
-    const categories = categoriesInput 
-      ? categoriesInput.split(',').map(c => c.trim()).filter(Boolean)
-      : [];
-    
-    if (!confirm('Are you sure you want to close this ticket?')) return;
+  // --- CLOSE TICKET LOGIC ---
+  function initiateCloseTicket() {
+    setShowCategoryModal(true);
+  }
 
+  async function confirmCloseTicket(categories: string[]) {
     try {
       setSending(true);
       await apiClient.closeTicket(ticketId, categories);
+      setShowCategoryModal(false);
       onBack();
     } catch (error) {
       console.error('Failed to close ticket:', error);
       alert('Failed to close ticket');
-    } finally {
       setSending(false);
     }
   }
 
   if (!ticket) {
     return (
-      <div className="p-4 flex items-center justify-center min-h-screen">
-        <div className="text-gray-500">Loading...</div>
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-gray-500 animate-pulse">Loading ticket...</div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b p-4 sticky top-0 z-10 shadow-sm">
+    // 1. MAIN CONTAINER: Full Screen, Fixed Overlay (No outer scroll)
+    <div className="fixed inset-0 flex flex-col bg-gray-50 z-50">
+
+      {/* 2. HEADER: Fixed Height (flex-none) */}
+      <div className="flex-none bg-white border-b p-4 shadow-sm z-10">
         <div className="flex items-center justify-between mb-2">
-          <button onClick={onBack} className="text-blue-600 font-medium">
-            ← Back
+          <button
+            onClick={onBack}
+            className="text-blue-600 font-medium flex items-center gap-1 hover:text-blue-700 transition"
+          >
+            <span>←</span> Back
           </button>
-          <span className="font-semibold text-gray-800">{ticket.ticketId}</span>
-          {ticket.status !== 'closed' && (
-            <button 
-              onClick={closeTicket}
-              disabled={sending}
-              className="text-red-600 text-sm font-medium disabled:opacity-50"
-            >
-              Close
-            </button>
-          )}
-        </div>
-        <div className="text-sm text-gray-600">
-          👤 {ticket.firstName} {ticket.lastName || ''}
-          {ticket.username && ` (@${ticket.username})`}
-        </div>
-        {ticket.assignedToName && (
-          <div className="text-xs text-gray-500 mt-1">
-            Assigned to: {ticket.assignedToName}
+
+          <div className="flex gap-2">
+            {ticket.status !== 'closed' && (
+              <button
+                onClick={initiateCloseTicket}
+                disabled={sending}
+                className="text-red-600 text-sm font-medium hover:bg-red-50 px-3 py-1 rounded transition disabled:opacity-50"
+              >
+                Close
+              </button>
+            )}
           </div>
-        )}
+        </div>
+
+        <div className="flex justify-between items-start">
+          <div>
+            <span className="font-bold text-gray-900 block text-lg">{ticket.ticketId}</span>
+            <div className="text-sm text-gray-500 flex items-center gap-1">
+              👤 {ticket.firstName} {ticket.lastName || ''}
+            </div>
+          </div>
+          {/* Status Badges */}
+          <div className="flex gap-1">
+            {ticket.status === 'escalated' && (
+              <span className="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded-full font-bold border border-amber-200">
+                ⚡ Escalated
+              </span>
+            )}
+            {ticket.status === 'in_progress' && (
+              <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium border border-blue-200">
+                In Progress
+              </span>
+            )}
+            {ticket.status === 'closed' && (
+              <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full font-medium border border-gray-200">
+                Closed
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Messages */}
-      <MessageList messages={ticket.messages} userFirstName={ticket.firstName} />
-      <div ref={messagesEndRef} />
+      {/* 3. MESSAGES: Flexible Height, Scrollable (flex-1) */}
+      <div
+        className="flex-1 overflow-y-auto p-4 scroll-smooth bg-gray-50"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        <div className="max-w-4xl mx-auto">
+          <MessageList messages={ticket.messages} userFirstName={ticket.firstName} />
+          {/* Invisible div to scroll to bottom */}
+          <div ref={messagesEndRef} className="h-2" />
+        </div>
+      </div>
 
-      {/* Input Area */}
+      {/* 4. FOOTER (Input): Fixed Height (flex-none) */}
       {ticket.status !== 'closed' && (
-        <div className="bg-white border-t p-4 sticky bottom-16 shadow-lg">
-          <div className="max-w-4xl mx-auto flex items-end gap-2">
+        <div className="flex-none bg-white border-t p-3 pb-safe-area shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-10">
+          <div className="max-w-4xl mx-auto flex items-center gap-2">
+
             <input
               type="file"
               id="file-upload"
@@ -217,9 +281,9 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
               onChange={handleFileUpload}
               accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
             />
-            <label 
+            <label
               htmlFor="file-upload"
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded cursor-pointer transition"
+              className="p-3 text-gray-500 hover:bg-gray-100 rounded-full cursor-pointer transition active:bg-gray-200 flex items-center justify-center"
             >
               📎
             </label>
@@ -234,7 +298,7 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
                 }
               }}
               placeholder="Type a message..."
-              className="flex-1 border rounded-lg px-3 py-2 resize-none max-h-32 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 border-0 bg-gray-100 rounded-2xl px-4 py-3 resize-none max-h-32 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm sm:text-base"
               rows={1}
               disabled={sending}
             />
@@ -242,7 +306,7 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
             {recording ? (
               <button
                 onClick={stopRecording}
-                className="p-2 bg-red-500 text-white rounded-full w-10 h-10 flex items-center justify-center animate-pulse"
+                className="p-3 bg-red-500 text-white rounded-full w-10 h-10 flex items-center justify-center animate-pulse"
               >
                 ⏹
               </button>
@@ -250,14 +314,14 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
               <button
                 onClick={sendMessage}
                 disabled={sending}
-                className="p-2 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-50 hover:bg-blue-600 transition"
+                className="p-3 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-50 hover:bg-blue-600 transition"
               >
                 ➤
               </button>
             ) : (
               <button
                 onClick={startRecording}
-                className="p-2 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-blue-600 transition"
+                className="p-3 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-blue-600 transition"
               >
                 🎤︎︎
               </button>
@@ -265,6 +329,14 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
           </div>
         </div>
       )}
+
+      {/* 5. MODALS (Overlay) */}
+      <CategoryModal
+        isOpen={showCategoryModal}
+        onClose={() => setShowCategoryModal(false)}
+        onConfirm={confirmCloseTicket}
+        isSending={sending}
+      />
     </div>
   );
 }
