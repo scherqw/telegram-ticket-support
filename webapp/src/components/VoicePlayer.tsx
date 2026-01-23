@@ -8,6 +8,7 @@ interface VoicePlayerProps {
 export function VoicePlayer({ audioUrl, duration }: VoicePlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [error, setError] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(duration || 0);
 
@@ -16,19 +17,39 @@ export function VoicePlayer({ audioUrl, duration }: VoicePlayerProps) {
     if (!audio) return;
 
     const updateTime = () => setCurrentTime(audio.currentTime);
-    const updateDuration = () => setTotalDuration(audio.duration);
+    const updateDuration = () => {
+      if (audio.duration !== Infinity && !isNaN(audio.duration)) {
+        setTotalDuration(audio.duration);
+      }
+    };
     const handleEnded = () => setIsPlaying(false);
+    const handleError = () => {
+      console.error("Audio failed to load:", audioUrl);
+      setError(true);
+    };
 
     audio.addEventListener('timeupdate', updateTime);
     audio.addEventListener('loadedmetadata', updateDuration);
+    audio.addEventListener('durationchange', updateDuration);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('timeupdate', updateTime);
       audio.removeEventListener('loadedmetadata', updateDuration);
+      audio.removeEventListener('durationchange', updateDuration);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('error', handleError);
     };
-  }, []);
+  }, [audioUrl]);
+
+  if (error) {
+    return (
+      <div className="text-xs text-red-500 bg-red-50 p-2 rounded">
+        ⚠️ Audio unavailable
+      </div>
+    );
+  }
 
   const togglePlay = () => {
     const audio = audioRef.current;

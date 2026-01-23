@@ -9,6 +9,12 @@ export function OpenTickets() {
 
   useEffect(() => {
     loadTickets();
+
+    const intervalId = setInterval(() => {
+      loadTickets();
+    }, 3000);
+
+    return () => clearInterval(intervalId)
   }, []);
 
   async function loadTickets() {

@@ -12,7 +12,7 @@ export function createApp(): Application {
   app.use(express.urlencoded({ extended: true }));
 
   // Serve static Web App files
-  app.use('/webapp', express.static(path.join(__dirname, '../../webapp/dist')));
+  app.use(express.static(path.join(__dirname, '../../webapp/dist')));
 
   // API Routes (protected)
   app.use('/api/tickets', authMiddleware, ticketRoutes);

@@ -10,10 +10,10 @@ export async function handleUserMessage(ctx: BotContext): Promise<void> {
   
   const config = loadConfig();
   
-  // Skip if user is a technician
-  if (config.admin.technician_ids.includes(ctx.from.id)) {
-    return;
-  }
+  // Skip if user is a technician (commented out to test)
+  // if (config.admin.technician_ids.includes(ctx.from.id)) {
+  //   return;
+  // }
   
   const userId = ctx.from.id;
   

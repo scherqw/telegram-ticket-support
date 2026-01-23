@@ -18,11 +18,17 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
 
   useEffect(() => {
     loadTicket();
+
+    const intervalId = setInterval(() => {
+      loadTicket();
+    }, 3000);
+
+    return () => clearInterval(intervalId);
   }, [ticketId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [ticket?.messages]);
+  }, [ticket?.messages.length]);
 
   async function loadTicket() {
     try {
@@ -71,13 +77,25 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
       setSending(false);
     }
   }
+  const recordingMimeTypeRef = useRef<string>('');
 
   async function startRecording() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm'
-      });
+      
+      // 1. Detect supported MIME type (Fix for iOS/Safari)
+      let mimeType = 'audio/webm';
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/mp4'; // iOS usually supports this
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = ''; // Let the browser choose its default
+        }
+      }
+      
+      recordingMimeTypeRef.current = mimeType; // Save for later
+
+      const options = mimeType ? { mimeType } : undefined;
+      const mediaRecorder = new MediaRecorder(stream, options);
 
       audioChunksRef.current = [];
 
@@ -88,8 +106,12 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const audioFile = new File([audioBlob], 'voice.webm', { type: 'audio/webm' });
+        // 2. Use the DETECTED mime type, not hardcoded 'audio/webm'
+        const finalMimeType = recordingMimeTypeRef.current || 'audio/webm';
+        const fileExtension = finalMimeType.includes('mp4') ? 'm4a' : 'webm';
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: finalMimeType });
+        const audioFile = new File([audioBlob], `voice.${fileExtension}`, { type: finalMimeType });
         
         stream.getTracks().forEach(track => track.stop());
         
@@ -109,8 +131,9 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
       mediaRecorderRef.current = mediaRecorder;
       setRecording(true);
     } catch (error) {
-      console.error('Failed to access microphone:', error);
-      alert('Cannot access microphone');
+      console.error('Failed to access microphone or start recording:', error);
+      // Give a more specific error if possible
+      alert('Cannot access microphone. Ensure you are using HTTPS and have granted permissions.');
     }
   }
 
@@ -236,7 +259,7 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
                 onClick={startRecording}
                 className="p-2 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-blue-600 transition"
               >
-                🎤
+                🎤︎︎
               </button>
             )}
           </div>

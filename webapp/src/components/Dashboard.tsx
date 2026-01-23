@@ -19,6 +19,12 @@ export function Dashboard() {
 
   useEffect(() => {
     loadStats();
+
+    const intervalId = setInterval(() => {
+      loadStats();
+    }, 1000);
+
+    return () => clearInterval(intervalId)
   }, []);
 
   async function loadStats() {
@@ -76,14 +82,14 @@ export function Dashboard() {
         />
       </div>
 
-      <div className="mt-8 bg-blue-50 rounded-lg p-4">
+      {/* <div className="mt-8 bg-blue-50 rounded-lg p-4">
         <h2 className="font-semibold text-blue-900 mb-2">💡 Quick Tips</h2>
         <ul className="text-sm text-blue-800 space-y-1">
           <li>• Click on any ticket to view details and reply</li>
           <li>• Unread messages are marked with a red badge</li>
           <li>• Use the media buttons to send photos or voice messages</li>
         </ul>
-      </div>
+      </div> */}
     </div>
   );
 }
