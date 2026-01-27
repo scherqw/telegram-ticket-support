@@ -26,9 +26,6 @@ export function loadConfig(): BotConfig {
     if (process.env.WEBAPP_PORT) {
       config.webapp.port = Number(process.env.WEBAPP_PORT);
     }
-    if (process.env.TELEGRAM_APP_LINK) {
-      config.webapp.telegram_link = process.env.TELEGRAM_APP_LINK;
-    }
     if (process.env.TECHNICIAN_IDS) {
       config.admin.technician_ids = process.env.TECHNICIAN_IDS
         .split(',')
@@ -39,6 +36,15 @@ export function loadConfig(): BotConfig {
         .split(',')
         .map(id => Number(id.trim()));
     }
+    if (!config.auth) {
+      config.auth = { jwt_secret: '', admin_password: '' };
+    }
+    if (process.env.JWT_SECRET) {
+      config.auth.jwt_secret = process.env.JWT_SECRET;
+    }
+    if (process.env.WEBAPP_PASSWORD) {
+      config.auth.admin_password = process.env.WEBAPP_PASSWORD;
+  }
 
     validateConfig(config);
     return config;
@@ -53,7 +59,9 @@ function validateConfig(config: BotConfig): void {
     ['bot.token', config.bot?.token],
     ['database.uri', config.database?.uri],
     ['webapp.url', config.webapp?.url],
-    ['admin.technician_ids', config.admin?.technician_ids?.length > 0]
+    ['admin.technician_ids', config.admin?.technician_ids?.length > 0],
+    ['auth.jwt_secret', config.auth?.jwt_secret],
+    ['auth.admin_password', config.auth?.admin_password]
   ];
 
   const missing = required.filter(([_, value]) => !value);

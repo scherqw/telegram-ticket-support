@@ -16,6 +16,10 @@ export interface BotConfig {
     port: number;
     telegram_link?: string;
   };
+  auth: {
+    jwt_secret: string;
+    admin_password: string;
+  };
   admin: {
     owner_id: number;
     technician_ids: number[];

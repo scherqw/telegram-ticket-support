@@ -7,12 +7,15 @@ bot:
 database:
   uri: "mongodb://localhost:27017/support_bot"
 
+# Authentication Configuration
+auth:
+  jwt_secret: "CHANGE_THIS_TO_A_LONG_RANDOM_STRING"
+  admin_password: "change_me"
+
 # Group IDs (Using Telegram Groups)
 groups:
   technician_group_id:
   archive_group_id:
-
-
   
 # Web App Configuration
 webapp:

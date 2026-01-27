@@ -134,7 +134,7 @@ router.post('/:ticketId/reply', async (req: AuthRequest, res) => {
     await sendMessageToUser(
       ticket,
       message,
-      req.telegramUser!
+      req.user!
     );
 
     res.json({ success: true });
@@ -163,7 +163,7 @@ router.post('/:ticketId/media', upload.single('file'), async (req: AuthRequest, 
       ticket,
       req.file,
       req.body.caption || '',
-      req.telegramUser!
+      req.user!
     );
 
     res.json({ success: true });
@@ -189,7 +189,7 @@ router.post('/:ticketId/close', async (req: AuthRequest, res) => {
     
     if (categories && categories.length > 0) {
       ticket.categories = categories;
-      ticket.categorizedBy = req.telegramUser!.id;
+      ticket.categorizedBy = req.user!.id;
       ticket.categorizedAt = new Date();
     }
 
@@ -252,7 +252,7 @@ router.post('/:ticketId/escalate', async (req: AuthRequest, res) => {
       from: 'technician',
       text: `Ticket ESCALATED to Level 2\nReason: ${reason || 'No reason provided'}`,
       timestamp: new Date(),
-      technicianName: `${req.telegramUser?.username}`,
+      technicianName: `${req.user?.username}`,
       isRead: true
     } as any);
 
@@ -264,7 +264,7 @@ router.post('/:ticketId/escalate', async (req: AuthRequest, res) => {
     const messageText = 
       `*ESCALATION ALERT*\n\n` +
       `*Ticket:* ${ticket.ticketId}\n` +
-      `*Escalated By:* ${req.telegramUser?.first_name}\n` +
+      `*Escalated By:* ${req.user?.first_name}\n` +
       `*Reason:* ${reason}\n\n` +
       `This ticket is now unassigned. The first to open it claims it.`;
 

@@ -285,9 +285,8 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
               htmlFor="file-upload"
               className="p-3 text-gray-500 hover:bg-gray-100 rounded-full cursor-pointer transition active:bg-gray-200 flex items-center justify-center"
             >
-              📎
+              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#000000"><path d="M720-330q0 104-73 177T470-80q-104 0-177-73t-73-177v-370q0-75 52.5-127.5T400-880q75 0 127.5 52.5T580-700v350q0 46-32 78t-78 32q-46 0-78-32t-32-78v-370h80v370q0 13 8.5 21.5T470-320q13 0 21.5-8.5T500-350v-350q-1-42-29.5-71T400-800q-42 0-71 29t-29 71v370q-1 71 49 120.5T470-160q70 0 119-49.5T640-330v-390h80v390Z"/></svg>
             </label>
-
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -306,24 +305,24 @@ export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
             {recording ? (
               <button
                 onClick={stopRecording}
-                className="p-3 bg-red-500 text-white rounded-full w-10 h-10 flex items-center justify-center animate-pulse"
+                className="p-3 bg-red-500 text-white rounded-full flex items-center justify-center animate-pulse"
               >
-                ⏹
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3"><path d="M240-240v-480h480v480H240Z"/></svg>
               </button>
             ) : message.trim() ? (
               <button
                 onClick={sendMessage}
                 disabled={sending}
-                className="p-3 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-50 hover:bg-blue-600 transition"
+                className="p-3 bg-blue-500 text-white rounded-full flex items-center justify-center disabled:opacity-50 hover:bg-blue-600 transition"
               >
-                ➤
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3"><path d="M120-160v-240l320-80-320-80v-240l760 320-760 320Z"/></svg>
               </button>
             ) : (
               <button
                 onClick={startRecording}
-                className="p-3 bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-blue-600 transition"
+                className="p-3 bg-blue-500 text-white rounded-full flex items-center justify-center hover:bg-blue-600 transition"
               >
-                🎤︎︎
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3"><path d="M480-400q-50 0-85-35t-35-85v-240q0-50 35-85t85-35q50 0 85 35t35 85v240q0 50-35 85t-85 35Zm-40 280v-123q-104-14-172-93t-68-184h80q0 83 58.5 141.5T480-320q83 0 141.5-58.5T680-520h80q0 105-68 184t-172 93v123h-80Z"/></svg>              
               </button>
             )}
           </div>

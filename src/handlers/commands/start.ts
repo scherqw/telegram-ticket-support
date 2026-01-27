@@ -9,21 +9,9 @@ export async function handleStart(ctx: BotContext): Promise<void> {
   const isTechnician = config.admin.technician_ids.includes(ctx.from.id);
 
   if (isTechnician) {
-    // Set Web App menu button for technicians
-    await ctx.api.setChatMenuButton({
-      chat_id: ctx.from.id,
-      menu_button: {
-        type: 'web_app',
-        text: 'Dashboard',
-        web_app: {
-          url: config.webapp.url
-        }
-      }
-    });
-
     await ctx.reply(
       '👨‍💼 *Welcome, Technician!*\n\n' +
-      'Click the menu button (📎 bottom-left) to open your dashboard.\n\n' +
+      'Navigate to the ' + `[Support website](${config.webapp.url})` + ' to answer or close a ticket.\n\n' +
       'You can also use:\n' +
       '/faq - Manage FAQs',
       { parse_mode: 'Markdown' }

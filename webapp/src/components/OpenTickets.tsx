@@ -54,7 +54,7 @@ export function OpenTickets() {
       
       {tickets.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
-          <div className="text-4xl mb-2">✅</div>
+          {/* <div className="text-4xl mb-2">✅</div> */}
           <p>No open tickets!</p>
         </div>
       ) : (

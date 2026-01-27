@@ -62,6 +62,11 @@ services:
       - MONGODB_URI=${MONGODB_URI}
       - OWNER_ID=${OWNER_ID}
       - TECHNICIAN_IDS=${TECHNICIAN_IDS}
+      - LEVEL2_IDS=${LEVEL2_IDS}
+
+      # Auth Configuration
+      - JWT_SECRET=${JWT_SECRET}
+      - WEBAPP_PASSWORD=${WEBAPP_PASSWORD}
       
       # Web App Configuration
       - WEBAPP_URL=${WEBAPP_URL}

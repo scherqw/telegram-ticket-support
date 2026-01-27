@@ -29,7 +29,7 @@ export const config = loadConfig();
 export const bot = new Bot<BotContext>(config.bot.token);
 
 async function main() {
-  console.log('🤖 Starting Telegram Support Bot (Web App Edition)...\n');
+  console.log('🤖 Starting Telegram Support Bot...\n');
 
   // ===== Load Configuration =====
   console.log('✅ Configuration loaded');
@@ -122,7 +122,6 @@ async function main() {
       console.log(`📱 Username: @${botInfo.username}`);
       console.log(`🌐 Web App URL: ${config.webapp.url}`);
       console.log(`📦 S3 Storage: ${process.env.S3_ENDPOINT || 'http://localstack:4566'}`);
-      console.log(`\n💡 Technicians can access the dashboard via menu button`);
       console.log(`💡 Users can send messages to create tickets\n`);
     }
   });

@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, CreateBucketCommand, HeadBucketCommand, PutBucketCors$, PutBucketCorsCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, CreateBucketCommand, HeadBucketCommand, PutBucketCorsCommand } from "@aws-sdk/client-s3";
 import axios from 'axios';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -10,12 +10,8 @@ if (ffmpegStatic) {
   ffmpeg.setFfmpegPath(ffmpegStatic);
 }
 
-// EXPORTED so other files can use it
 export const BUCKET_NAME = 'telegram-media';
 
-/**
- * Initialize S3 client for LocalStack
- */
 function getS3Client(): S3Client {
   return new S3Client({
     endpoint: process.env.S3_ENDPOINT || "http://localstack:4566",
@@ -24,31 +20,24 @@ function getS3Client(): S3Client {
       accessKeyId: process.env.AWS_ACCESS_KEY_ID || "test",
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "test"
     },
-    forcePathStyle: true, // Required for LocalStack
+    forcePathStyle: true,
   });
 }
 
-/**
- * Ensures the S3 bucket exists, creates it if not
- */
 export async function ensureBucketExists(): Promise<void> {
   const s3 = getS3Client();
-  
   try {
     await s3.send(new HeadBucketCommand({ Bucket: BUCKET_NAME }));
-    console.log(`✅ S3 bucket "${BUCKET_NAME}" exists`);
   } catch (error: any) {
     if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
       console.log(`📦 Creating S3 bucket "${BUCKET_NAME}"...`);
       await s3.send(new CreateBucketCommand({ Bucket: BUCKET_NAME }));
-      console.log(`✅ S3 bucket "${BUCKET_NAME}" created`);
     } else {
-      console.error('❌ Error checking S3 bucket:', error);
       throw error;
     }
   }
 
-  console.log(`🔧 Applying CORS policy to "${BUCKET_NAME}"...`);
+  // Apply CORS
   await s3.send(new PutBucketCorsCommand({
     Bucket: BUCKET_NAME,
     CORSConfiguration: {
@@ -57,22 +46,55 @@ export async function ensureBucketExists(): Promise<void> {
           AllowedHeaders: ["*"],
           AllowedMethods: ["GET", "HEAD"],
           AllowedOrigins: ["*"],
-          ExposeHeaders: ["ETag", "Content-Length", "Content-Type", "Accept-Ranges"],
+          ExposeHeaders: ["ETag", "Content-Length", "Content-Type"],
           MaxAgeSeconds: 3000
         }
       ]
     }
   }));
-  console.log(`✅ CORS policy applied`);
 }
 
 /**
- * Downloads a file from Telegram and uploads it to S3
- * * @param botToken - Telegram bot token
- * @param fileId - Telegram file ID
- * @param ticketId - Ticket ID for organizing files
- * @param mediaType - Type of media (photo, document, etc.)
- * @returns S3 key and URL
+ * Direct Upload to S3 (Used by Technician Web App)
+ */
+export async function uploadFileToS3(
+  fileBuffer: Buffer,
+  fileName: string,
+  ticketId: string,
+  mimeType: string
+): Promise<{ s3Key: string; s3Url: string }> {
+  try {
+    // If it's audio/voice, ensure it is MP3 for Web App compatibility
+    if (mimeType.startsWith('audio') || mimeType === 'application/ogg') {
+      if (!fileName.endsWith('.mp3')) {
+        fileBuffer = await convertToMp3(fileBuffer, fileName);
+        fileName = fileName.replace(/\.[^/.]+$/, "") + ".mp3";
+        mimeType = 'audio/mpeg';
+      }
+    }
+
+    const s3Key = `tickets/${ticketId}/${Date.now()}_${fileName}`;
+    const s3 = getS3Client();
+
+    await s3.send(new PutObjectCommand({
+      Bucket: BUCKET_NAME,
+      Key: s3Key,
+      Body: fileBuffer,
+      ContentType: mimeType,
+    }));
+
+    const publicEndpoint = process.env.S3_PUBLIC_ENDPOINT || "http://localhost:4566";
+    const s3Url = `${publicEndpoint}/${BUCKET_NAME}/${s3Key}`;
+
+    return { s3Key, s3Url };
+  } catch (error) {
+    console.error('❌ Direct S3 Upload failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Download from Telegram and Upload to S3 (Used by Bot User)
  */
 export async function downloadAndUploadToS3(
   botToken: string,
@@ -81,74 +103,33 @@ export async function downloadAndUploadToS3(
   mediaType: string
 ): Promise<{ s3Key: string; s3Url: string }> {
   try {
-    // Step 1: Get file info
+    // 1. Get File Info
     const fileInfoResponse = await axios.get(
       `https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`
     );
     
-    if (!fileInfoResponse.data.ok) {
-      throw new Error('Failed to get file info from Telegram');
-    }
-    
     const filePath = fileInfoResponse.data.result.file_path;
-    let fileExtension = path.extname(filePath) || getDefaultExtension(mediaType);
-    let fileName = `${mediaType}_${Date.now()}${fileExtension}`;
-    
-    // Step 2: Download file
     const fileUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+    
+    // 2. Download
     const fileResponse = await axios.get(fileUrl, { responseType: 'arraybuffer' });
-    let fileBuffer = Buffer.from(fileResponse.data);
-    let contentType = getContentType(mediaType, fileExtension);
+    const fileBuffer = Buffer.from(fileResponse.data);
+    
+    const ext = path.extname(filePath) || getDefaultExtension(mediaType);
+    const fileName = `${mediaType}${ext}`;
+    const contentType = getContentType(mediaType, ext);
 
-    console.log(`📥 Downloaded ${fileName} (${fileBuffer.length} bytes)`);
-    
-    // Step 3: Convert Voice to MP3 (Fix for Safari/Web Playback)
-    if (mediaType === 'voice' || (mediaType === 'audio' && fileExtension === '.oga')) {
-      console.log(`🔄 Converting ${fileName} to MP3 for web compatibility...`);
-      try {
-        fileBuffer = await convertToMp3(fileBuffer, fileName);
-        
-        // Update metadata to reflect MP3
-        fileExtension = '.mp3';
-        fileName = fileName.replace(/\.[^/.]+$/, ".mp3");
-        contentType = 'audio/mpeg';
-        
-        console.log(`✅ Conversion successful: ${fileName} (${fileBuffer.length} bytes)`);
-      } catch (error) {
-        console.error('⚠️ Conversion failed, uploading original file:', error);
-      }
-    }
-    
-    // Step 4: Upload to S3
-    const s3Key = `tickets/${ticketId}/${fileName}`;
-    const s3 = getS3Client();
-    
-    await s3.send(new PutObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: s3Key,
-      Body: fileBuffer,
-      ContentType: contentType,
-    }));
-    
-    console.log(`📤 Uploaded to S3: ${s3Key}`);
-    
-    const publicEndpoint = process.env.S3_PUBLIC_ENDPOINT || "http://localhost:4566";
-    const s3Url = `${publicEndpoint}/${BUCKET_NAME}/${s3Key}`;
-    
-    return { s3Key, s3Url };
+    // 3. Reuse the direct upload logic
+    return await uploadFileToS3(fileBuffer, fileName, ticketId, contentType);
     
   } catch (error: any) {
-    console.error('❌ Error downloading/uploading file:', error.message);
+    console.error('❌ Telegram-to-S3 failed:', error.message);
     throw error;
   }
 }
 
-/**
- * Helper: Converts Audio Buffer to MP3 Buffer
- */
 async function convertToMp3(inputBuffer: Buffer, originalName: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    // Create temp files
     const tempInput = path.join('/tmp', `input-${Date.now()}-${originalName}`);
     const tempOutput = path.join('/tmp', `output-${Date.now()}.mp3`);
 
@@ -158,18 +139,12 @@ async function convertToMp3(inputBuffer: Buffer, originalName: string): Promise<
       .toFormat('mp3')
       .audioBitrate('128k')
       .on('end', () => {
-        try {
-          const outputBuffer = fs.readFileSync(tempOutput);
-          // Cleanup
-          if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
-          if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
-          resolve(outputBuffer);
-        } catch (err) {
-          reject(err);
-        }
+        const outputBuffer = fs.readFileSync(tempOutput);
+        fs.unlinkSync(tempInput);
+        fs.unlinkSync(tempOutput);
+        resolve(outputBuffer);
       })
       .on('error', (err) => {
-        // Cleanup on error
         if (fs.existsSync(tempInput)) fs.unlinkSync(tempInput);
         if (fs.existsSync(tempOutput)) fs.unlinkSync(tempOutput);
         reject(err);
@@ -178,37 +153,24 @@ async function convertToMp3(inputBuffer: Buffer, originalName: string): Promise<
   });
 }
 
-/**
- * Gets default file extension based on media type
- */
 function getDefaultExtension(mediaType: string): string {
   const extensions: Record<string, string> = {
     photo: '.jpg',
     video: '.mp4',
     audio: '.mp3',
     voice: '.oga',
-    document: '.bin',
-    sticker: '.webp'
+    document: '.bin'
   };
   return extensions[mediaType] || '.bin';
 }
 
-/**
- * Gets content type based on media type and extension
- */
 function getContentType(mediaType: string, extension: string): string {
   const contentTypes: Record<string, string> = {
     '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.png': 'image/png',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
     '.mp4': 'video/mp4',
     '.mp3': 'audio/mpeg',
-    '.ogg': 'audio/ogg',
     '.oga': 'audio/ogg',
     '.pdf': 'application/pdf',
   };
-  
   return contentTypes[extension.toLowerCase()] || 'application/octet-stream';
 }
