@@ -6,18 +6,19 @@ import { ArchivedTickets } from './components/ArchivedTickets';
 import { Login } from './components/Login';
 import { TicketDetail } from './components/TicketDetail';
 import { useAuth } from './hooks/useAuth';
+import { LinkingModal } from './components/LinkingModal';
 
 type View = 'dashboard' | 'open' | 'archived';
 
 export function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
-  const { isAuthenticated, isLoading, login, logout } = useAuth();
+  const { isAuthenticated, isLoading, login, logout, user, updateSession } = useAuth();
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
 
   useEffect(() => {
-    // Handle URL parameters for direct ticket access (Deep linking)
     const params = new URLSearchParams(window.location.search);
-    const ticketParam = params.get('startapp') || params.get('ticket'); // Support both standard web and Telegram params
+    const ticketParam = params.get('startapp') || params.get('ticket'); 
     
     if (ticketParam && ticketParam.startsWith('TICK-')) {
       setSelectedTicketId(ticketParam);
@@ -26,7 +27,6 @@ export function App() {
 
   const handleBack = () => {
     setSelectedTicketId(null);
-    // Clean URL
     const url = new URL(window.location.href);
     url.searchParams.delete('startapp');
     url.searchParams.delete('ticket');
@@ -63,13 +63,39 @@ export function App() {
     );
   }
 
+  // ID 0 is the default "Web Admin" ID from backend
+  const isWebAdmin = user?.id === 0;
+
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-gray-50">
+      {/* Header */}
       <div className="bg-white border-b shadow-sm p-4 flex justify-between items-center max-w-4xl mx-auto w-full z-10">
-        <h1 className="font-bold text-gray-800">Support Desk</h1>
+        <div>
+          <h1 className="font-bold text-gray-800 leading-tight">Support Desk</h1>
+          {/* User Status / Link Button */}
+          <div className="text-xs mt-0.5">
+            {isWebAdmin ? (
+              <button 
+                onClick={() => setIsLinkModalOpen(true)}
+                className="text-blue-600 hover:text-blue-800 hover:underline flex items-center"
+              >
+                <span>⚠️ Connect Telegram</span>
+              </button>
+            ) : (
+              <span className="text-green-700 bg-green-50 px-2 py-0.5 rounded-full flex items-center font-medium border border-green-100">
+                <span className="relative flex h-2 w-2 mr-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                Connected as {user?.first_name}
+              </span>
+            )}
+          </div>
+        </div>
+
         <button 
           onClick={handleLogout}
-          className="text-sm text-red-600 hover:text-red-800 font-medium"
+          className="text-sm text-red-600 hover:text-red-800 font-medium px-2 py-1"
         >
           Logout
         </button>
@@ -89,6 +115,15 @@ export function App() {
           onViewChange={setCurrentView} 
         />
       </div>
+
+      {/* Linking Modal */}
+      <LinkingModal 
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        onSuccess={(token, newUser) => {
+          updateSession(token, newUser);
+        }}
+      />
     </div>
   );
 }

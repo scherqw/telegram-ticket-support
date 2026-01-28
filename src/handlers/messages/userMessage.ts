@@ -1,7 +1,17 @@
 import { BotContext } from '../../types';
 import { Ticket, TicketStatus } from '../../database/models/Ticket';
+import { Technician } from '../../database/models/Technician';
 import { downloadAndUploadToS3 } from '../../services/s3Service';
 import { loadConfig } from '../../config/loader';
+import { Bot } from 'grammy';
+import { escapeMarkdown } from '../../utils/formatters';
+
+// Store the Tech Bot instance
+let techBotInstance: Bot<BotContext> | null = null;
+
+export function setTechBot(bot: Bot<BotContext>) {
+  techBotInstance = bot;
+}
 
 export async function handleUserMessage(ctx: BotContext): Promise<void> {
   if (ctx.chat?.type !== 'private') return;
@@ -65,7 +75,7 @@ async function createNewTicket(ctx: BotContext): Promise<void> {
   if (hasMedia && fileId) {
     try {
       const s3Result = await downloadAndUploadToS3(
-        config.bot.token,
+        config.bot.user_token,
         fileId,
         ticket.ticketId,
         mediaType || 'unknown'
@@ -98,6 +108,38 @@ async function createNewTicket(ctx: BotContext): Promise<void> {
     `We'll respond as soon as possible!`,
     { parse_mode: 'Markdown' }
   );
+
+  if (techBotInstance) {
+    try {
+      const technicians = await Technician.find({});
+      const notificationText = 
+        `🔔 *New Ticket Created*\n` +
+        `ID: \`${ticket.ticketId}\`\n` +
+        `User: ${user.first_name} ${user.username ? `(@${escapeMarkdown(user.username)})` : ''}\n` +
+        `Message: ${messageText.substring(0, 50)}${messageText.length > 50 ? '...' : ''}`;
+      
+      const linkButton = {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: "🔎 View in Web App", url: `${config.webapp.url}?startapp=${ticket.ticketId}`}
+          ]]
+        }
+      };
+
+      // Notify linked technicians
+      await Promise.all(technicians.map(tech => 
+        techBotInstance!.api.sendMessage(tech.telegramId, notificationText, { 
+          parse_mode: 'Markdown',
+          ...linkButton
+        }).catch(err => console.error(`Failed to notify tech ${tech.telegramId}:`, err))
+      ));
+
+      // Also notify legacy admin IDs from env if needed (optional, keeping it clean for now)
+
+    } catch (err) {
+      console.error('Failed to send technician notifications:', err);
+    }
+  }
   
   console.log(`✅ Created ticket ${ticket.ticketId} for user ${user.id}`);
 }
@@ -114,7 +156,7 @@ async function addMessageToTicket(ctx: BotContext, ticket: any): Promise<void> {
   if (hasMedia && fileId) {
     try {
       const s3Result = await downloadAndUploadToS3(
-        config.bot.token,
+        config.bot.user_token,
         fileId,
         ticket.ticketId,
         mediaType || 'unknown'

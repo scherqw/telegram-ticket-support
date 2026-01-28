@@ -6,11 +6,12 @@ import { handleMediaUpload } from '../controllers/mediaController';
 import { sendMessageToUser } from '../controllers/messageController';
 import { sendRatingRequest } from '../../handlers/rating/ratingHandler';
 import { loadConfig } from '../../config/loader';
-import { bot } from '../../index'
+import { userBot } from '../../index'
 import { InlineKeyboard } from 'grammy';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
+const config = loadConfig();
 
 // Get all open tickets
 router.get('/open', async (req: AuthRequest, res) => {
@@ -196,12 +197,9 @@ router.post('/:ticketId/close', async (req: AuthRequest, res) => {
     await ticket.save();
 
     // Send closure message to user
-    const config = loadConfig();
-    const { Bot } = await import('grammy');
-    const bot = new Bot(config.bot.token);
     
     try {
-      await bot.api.sendMessage(
+      await userBot.api.sendMessage(
         ticket.userId,
         `✅ *Ticket Closed: ${ticket.ticketId}*\n\n` +
         `Your support ticket has been resolved.\n\n` +
@@ -213,7 +211,7 @@ router.post('/:ticketId/close', async (req: AuthRequest, res) => {
       // Send rating request if enabled
       if (config.features.enable_ratings) {
         setTimeout(() => {
-          sendRatingRequest(ticket.userId, ticket.ticketId, bot.api);
+          sendRatingRequest(ticket.userId, ticket.ticketId, userBot.api);
         }, 1000);
       }
     } catch (error) {
@@ -237,7 +235,6 @@ router.post('/:ticketId/escalate', async (req: AuthRequest, res) => {
       return;
     }
 
-    const config = loadConfig();
     const level2Ids = config.admin.level2_ids || [];
 
     if (level2Ids.length === 0) {
@@ -269,7 +266,7 @@ router.post('/:ticketId/escalate', async (req: AuthRequest, res) => {
       `This ticket is now unassigned. The first to open it claims it.`;
 
     const notifications = level2Ids.map(id => 
-      bot.api.sendMessage(id, messageText, {
+      userBot.api.sendMessage(id, messageText, {
         parse_mode: 'Markdown',
         reply_markup: keyboard
       }).catch(error => console.error(`Failed to notify Level 2 technician ${id}`, error))

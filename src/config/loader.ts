@@ -11,8 +11,11 @@ export function loadConfig(): BotConfig {
     const config = yaml.parse(configFile) as BotConfig;
 
     // Override with environment variables
-    if (process.env.BOT_TOKEN) {
-      config.bot.token = process.env.BOT_TOKEN;
+    if (process.env.BOT_USER_TOKEN) {
+      config.bot.user_token = process.env.BOT_USER_TOKEN;
+    }
+    if (process.env.BOT_TECH_TOKEN) {
+      config.bot.tech_token = process.env.BOT_TECH_TOKEN;
     }
     if (process.env.MONGODB_URI) {
       config.database.uri = process.env.MONGODB_URI;
@@ -56,7 +59,8 @@ export function loadConfig(): BotConfig {
 
 function validateConfig(config: BotConfig): void {
   const required = [
-    ['bot.token', config.bot?.token],
+    ['bot.user_token', config.bot?.user_token],
+    ['bot.tech_token', config.bot?.tech_token],
     ['database.uri', config.database?.uri],
     ['webapp.url', config.webapp?.url],
     ['admin.technician_ids', config.admin?.technician_ids?.length > 0],

@@ -4,7 +4,8 @@ export type BotContext = GrammyContext;
 
 export interface BotConfig {
   bot: {
-    token: string;
+    user_token: string;
+    tech_token: string;
     username: string;
     parse_mode: 'Markdown' | 'HTML';
   };

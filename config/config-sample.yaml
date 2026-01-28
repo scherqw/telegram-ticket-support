@@ -1,6 +1,7 @@
 # Telegram Bot Configuration
 bot:
-  token: "YOUR_BOT_TOKEN"
+  user_token: "YOUR_USER_BOT_TOKEN"
+  tech_token: "YOUR_TECH_BOT_TOKEN"
   parse_mode: "Markdown"
 
 # Database Configuration

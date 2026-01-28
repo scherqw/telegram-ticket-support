@@ -11,6 +11,7 @@ import { setBotInstance as setMediaControllerBot } from './server/controllers/me
 // Command handlers
 import { handleStart } from './handlers/commands/start';
 import { handleHelp } from './handlers/commands/help';
+import { handleLinkCommand } from './handlers/commands/linkTechnician';
 
 // FAQ handlers
 import { showFAQMenu } from './handlers/faq/menu';
@@ -20,13 +21,14 @@ import { handleFAQCallback } from './handlers/faq/callback';
 import { handleRatingCallback } from './handlers/rating/ratingHandler';
 
 // Message handlers
-import { handleUserMessage } from './handlers/messages/userMessage';
+import { handleUserMessage, setTechBot as setNotificationBot } from './handlers/messages/userMessage';
 
 // Ticket management
 import { showUserTickets } from './handlers/tickets/list';
 
 export const config = loadConfig();
-export const bot = new Bot<BotContext>(config.bot.token);
+export const userBot = new Bot<BotContext>(config.bot.user_token);
+export const techBot = new Bot<BotContext>(config.bot.tech_token);
 
 async function main() {
   console.log('🤖 Starting Telegram Support Bot...\n');
@@ -50,37 +52,38 @@ async function main() {
   console.log('✅ Bot initialized');
 
   // Set bot instances for controllers
-  setMessageControllerBot(bot);
-  setMediaControllerBot(bot);
+  setMessageControllerBot(userBot);
+  setMediaControllerBot(userBot);
+  setNotificationBot(techBot);
 
   // ===== Middleware =====
-  bot.use(logger);
+  userBot.use(logger);
 
   // =========================================================================
   // BASIC COMMANDS
   // =========================================================================
 
-  bot.command('start', handleStart);
-  bot.command('help', handleHelp);
+  userBot.command('start', handleStart);
+  userBot.command('help', handleHelp);
 
   // =========================================================================
   // FAQ SYSTEM (Works everywhere)
   // =========================================================================
 
-  bot.command('faq', showFAQMenu);
-  bot.callbackQuery(/^faq:/, handleFAQCallback);
+  userBot.command('faq', showFAQMenu);
+  userBot.callbackQuery(/^faq:/, handleFAQCallback);
 
   // =========================================================================
   // RATING SYSTEM
   // =========================================================================
 
-  bot.callbackQuery(/^rate:/, handleRatingCallback);
+  userBot.callbackQuery(/^rate:/, handleRatingCallback);
 
   // =========================================================================
   // USER TICKET MANAGEMENT (Private DM only)
   // =========================================================================
 
-  bot.command('mytickets', async (ctx) => {
+  userBot.command('mytickets', async (ctx) => {
     if (ctx.chat?.type === 'private') {
       await showUserTickets(ctx);
     }
@@ -90,7 +93,7 @@ async function main() {
   // MESSAGE ROUTING (Users only - no technician group logic)
   // =========================================================================
 
-  bot.on('message', async (ctx) => {
+  userBot.on('message', async (ctx) => {
     await handleUserMessage(ctx);
   });
 
@@ -98,9 +101,25 @@ async function main() {
   // ERROR HANDLING
   // =========================================================================
 
-  bot.catch((err) => {
+  userBot.catch((err) => {
     console.error(`❌ Error handling update ${err.ctx.update.update_id}:`);
     console.error(err.error);
+  });
+
+  // =========================================================================
+  // TECH BOT CONFIGURATION
+  // =========================================================================
+
+  techBot.use(logger);
+
+  techBot.command('link', handleLinkCommand);
+
+  techBot.command('start', async (ctx) => {
+    await ctx.reply('👋 Hello! Use /link <code> to log in to the dashboard.');
+  });
+
+  techBot.catch((err) => {
+    console.error(`❌ Tech Bot Error ${err.ctx.update.update_id}:`, err.error);
   });
 
   // =========================================================================
@@ -115,16 +134,23 @@ async function main() {
   // =========================================================================
   // START BOT
   // =========================================================================
+  await Promise.all([
+    userBot.start({
+      onStart: (botInfo) => {
+        console.log('\n✅ User Bot is running!');
+        console.log(`📱 Username: @${botInfo.username}`);
+        console.log(`🌐 Web App URL: ${config.webapp.url}`);
+        console.log(`📦 S3 Storage: ${process.env.S3_ENDPOINT || 'http://localstack:4566'}`);
+        console.log(`💡 Users can send messages to create tickets\n`);
+      }
+    }),
 
-  await bot.start({
-    onStart: (botInfo) => {
-      console.log('\n✅ Bot is running!');
-      console.log(`📱 Username: @${botInfo.username}`);
-      console.log(`🌐 Web App URL: ${config.webapp.url}`);
-      console.log(`📦 S3 Storage: ${process.env.S3_ENDPOINT || 'http://localstack:4566'}`);
-      console.log(`💡 Users can send messages to create tickets\n`);
-    }
-  });
+    techBot.start({
+      onStart: (botInfo) => {
+        console.log(`✅ Tech Bot is running! (@${botInfo.username})`)
+      }
+    })
+  ]);
 
   // =========================================================================
   // GRACEFUL SHUTDOWN
@@ -133,7 +159,10 @@ async function main() {
   const shutdown = async (signal: string) => {
     console.log(`\n⏹️  Received ${signal}, shutting down...`);
     server.close();
-    await bot.stop();
+    await Promise.all([
+      userBot.stop(),
+      techBot.stop()
+    ])
     process.exit(0);
   };
 

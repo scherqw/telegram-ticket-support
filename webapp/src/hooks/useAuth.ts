@@ -55,11 +55,19 @@ export function useAuth() {
     setUser(null);
   };
 
+  const updateSession = (token: string, newUser: User) => {
+    apiClient.setToken(token);
+    localStorage.setItem('auth_user', JSON.stringify(newUser));
+    setUser(newUser);
+    setIsAuthenticated(true);
+  };
+
   return {
     isAuthenticated,
     isLoading,
     user,
     login,
-    logout
+    logout,
+    updateSession
   };
 }

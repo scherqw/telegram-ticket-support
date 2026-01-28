@@ -84,7 +84,7 @@ function validateTelegramWebAppData(initData: string): TelegramUser | null {
 
   const secretKey = crypto
     .createHmac('sha256', 'WebAppData')
-    .update(config.bot.token)
+    .update(config.bot.user_token)
     .digest();
 
   const calculatedHash = crypto
